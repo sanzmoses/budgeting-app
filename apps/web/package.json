@@ -1,0 +1,10 @@
+{
+  "name": "web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "echo \"Set up your React toolchain here (Vite or CRA)\"",
+    "build": "echo \"Add your React build command here\"",
+    "start": "echo \"Add your React preview/start command here\""
+  }
+}

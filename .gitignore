@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+
+# builds
+.next/
+dist/
+build/
+coverage/
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# secrets
+secrets/
+!secrets/README.md
+secrets/*.local
+secrets/*.private
+secrets/*.key
+secrets/*.pem
+secrets/*.env
+
+# misc
+.tmp/
