@@ -1,6 +1,12 @@
 # Budgeting App Monorepo
 
-Infrastructure-first scaffold for a budgeting app with separate frontend and backend deploy targets.
+Multi-user budgeting app. Frontend and backend deploy independently from this single repo.
+
+## Planning docs
+
+- `docs/infrastructure.md` — hosting, domains, deploy paths
+- `docs/implementation-plan.md` — product decisions, domain model, phase plan
+- `docs/session-handoff.md` — quick-start for resuming work
 
 ## Repo
 
@@ -8,20 +14,267 @@ Infrastructure-first scaffold for a budgeting app with separate frontend and bac
 
 ## Stack
 
-- Frontend: React
-- Backend: PHP + MySQL
+- Frontend: React + Vite (`apps/web`)
+- Backend: Plain PHP API (`apps/api`)
+- Database: MySQL on Hostinger (Phase 1)
 
 ## Structure
 
-- `apps/web` — React frontend
-- `apps/api` — PHP backend API
-- `packages/shared` — shared code/types/docs if needed
-- `docs` — infrastructure and deployment notes
-- `secrets` — local secret placeholders and private setup references
+```
+apps/web        React frontend
+apps/api        PHP backend API
+packages/shared shared code/types (future)
+docs            infrastructure and planning notes
+secrets         local secret placeholders (not committed)
+```
+
+## Local development
+
+### Prerequisites
+
+- Node.js 18+
+- PHP 8.1+ (for the built-in dev server)
+
+### Frontend
+
+```bash
+# Install dependencies
+npm install
+
+# Start dev server at http://localhost:3000
+npm run dev:web
+
+# Production build
+npm run build:web
+```
+
+### Backend
+
+```bash
+cd apps/api
+
+# Copy env example and fill in values as needed
+cp .env.example .env
+
+# Start PHP built-in server at http://localhost:8000
+# The script exports env vars from .env then starts the server.
+./serve.sh
+
+# Or manually:
+export $(grep -v '^#' .env | xargs) && php -S localhost:8000 index.php
+```
+
+### Database setup
+
+Phase 1 adds a MySQL schema and seed data. Apply them to a fresh database:
+
+```bash
+# Create the database in your MySQL instance first, then:
+mysql -u <user> -p <dbname> < apps/api/db/schema.sql
+mysql -u <user> -p <dbname> < apps/api/db/seed.sql
+```
+
+Then fill in the DB values in `apps/api/.env`:
+
+```
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=budgeting
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+```
+
+> Seed data includes two dev users (`sanz` / `kaye`) with the password `password`.
+> Change these before any real use.
+
+### Auth (Phase 2)
+
+Phase 2 adds bearer token auth. After applying the Phase 2 migration (or
+running the full schema which includes `auth_tokens`), the following endpoints
+are active:
+
+| Endpoint           | Method | Auth required | Description                |
+| ------------------ | ------ | ------------- | -------------------------- |
+| `/auth/login`      | POST   | No            | Returns bearer token       |
+| `/auth/logout`     | POST   | Yes           | Invalidates token          |
+| `/auth/me`         | GET    | Yes           | Returns current user       |
+
+**Seed users** (password: `password` for both — change before real use):
+
+| Username | Name |
+| -------- | ---- |
+| `sanz`   | Sanz |
+| `kaye`   | Kaye |
+
+To apply the Phase 2 migration to an existing Phase 1 database:
+
+```bash
+mysql -u <user> -p <dbname> < apps/api/db/migrate_phase2.sql
+```
+
+Test login locally:
+```bash
+curl -s -X POST http://localhost:8000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"sanz","password":"password"}' | jq .
+```
+
+### Transactions (Phase 3)
+
+Phase 3 adds transaction entry. After logging in via the frontend you will see
+four tabs: **Expense**, **Income**, **Savings**, and **Transactions**.
+
+The following API endpoints are active (all require a valid `Authorization: Bearer <token>` header):
+
+| Endpoint          | Method | Description                                   |
+| ----------------- | ------ | --------------------------------------------- |
+| `/bootstrap`      | GET    | Option lists: accounts, categories, subcategories, places, income sources |
+| `/transactions`   | POST   | Create expense, income, or transfer            |
+| `/transactions`   | GET    | List transactions (default: current month)     |
+
+**Create an expense via curl:**
+```bash
+TOKEN="<your-token-from-login>"
+
+curl -s -X POST http://localhost:8000/transactions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "type": "expense",
+    "transaction_date": "2026-04-23",
+    "account_id": 1,
+    "category_id": 4,
+    "subcategory_id": 13,
+    "place_id": 1,
+    "amount": 850.00,
+    "description": "Weekly grocery run"
+  }' | jq .
+```
+
+**Create an income entry:**
+```bash
+curl -s -X POST http://localhost:8000/transactions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "type": "income",
+    "transaction_date": "2026-04-23",
+    "account_id": 1,
+    "income_source_id": 1,
+    "amount": 25000.00,
+    "description": "April salary"
+  }' | jq .
+```
+
+**Create a transfer (savings movement):**
+```bash
+curl -s -X POST http://localhost:8000/transactions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "type": "transfer",
+    "transaction_date": "2026-04-23",
+    "from_account_id": 1,
+    "to_account_id": 2,
+    "amount": 3000.00,
+    "transfer_label": "Travel"
+  }' | jq .
+```
+
+**List current-month transactions:**
+```bash
+curl -s "http://localhost:8000/transactions" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+
+# Filter by type:
+curl -s "http://localhost:8000/transactions?type=expense" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+
+# Different month:
+curl -s "http://localhost:8000/transactions?month=2026-04" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+### Transaction management (Phase 4)
+
+Phase 4 adds edit/delete for transactions and computed account balances.
+
+The following additional API endpoints are active (all require `Authorization: Bearer <token>`):
+
+| Endpoint                    | Method | Description                              |
+| --------------------------- | ------ | ---------------------------------------- |
+| `/transactions/{id}`        | GET    | Single transaction detail                |
+| `/transactions/{id}`        | PUT    | Edit a transaction (type cannot change)  |
+| `/transactions/{id}`        | DELETE | Soft-delete a transaction                |
+| `/accounts/balances`        | GET    | Computed balances for all active accounts|
+| `/accounts/{id}/balance`    | GET    | Computed balance for one account         |
+
+**Get a single transaction:**
+```bash
+curl -s http://localhost:8000/transactions/1 \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+**Edit a transaction:**
+```bash
+curl -s -X PUT http://localhost:8000/transactions/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "transaction_date": "2026-04-23",
+    "account_id": 1,
+    "category_id": 4,
+    "subcategory_id": 13,
+    "amount": 900.00,
+    "description": "Updated grocery run"
+  }' | jq .
+```
+
+**Soft-delete a transaction:**
+```bash
+curl -s -X DELETE http://localhost:8000/transactions/1 \
+  -H "Authorization: Bearer $TOKEN"
+# Returns 204 No Content on success
+```
+
+**Get all account balances:**
+```bash
+curl -s http://localhost:8000/accounts/balances \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+**Get one account's balance:**
+```bash
+curl -s http://localhost:8000/accounts/1/balance \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+### Health checks
+
+| Endpoint                        | Expected response        |
+| ------------------------------- | ------------------------ |
+| `http://localhost:3000`         | React app loads          |
+| `http://localhost:8000/`        | JSON: app info           |
+| `http://localhost:8000/health`  | JSON: `{ status: "ok" }` |
+
+## Environment files
+
+| File                    | Purpose                                    |
+| ----------------------- | ------------------------------------------ |
+| `apps/web/.env.example` | Frontend env template — copy to `.env`     |
+| `apps/api/.env.example` | Backend env template — copy to `.env`      |
+
+Only `VITE_*` variables in `apps/web/.env` are exposed to the browser.
+Never put backend secrets in the frontend env file.
+
+## Deploy targets
+
+| App      | URL                              | Hostinger root                                              |
+| -------- | -------------------------------- | ----------------------------------------------------------- |
+| Frontend | `https://budget.sanzmoses.com`   | `/home/u141166830/domains/budget.sanzmoses.com/public_html` |
+| API      | `https://budget-api.sanzmoses.com` | `/home/u141166830/domains/budget-api.sanzmoses.com/public_html` |
 
 ## Notes
 
-- Keep real secrets out of Git if this repo will be pushed.
-- Use the example env files as templates.
-- Frontend and backend can deploy independently from this single repo.
-- PHP backend and React frontend can still live cleanly in one repo.
+- Keep real secrets out of git. Use `.env` files locally; set env vars in the hosting panel for production.
+- Frontend and backend deploy independently.
