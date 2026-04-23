@@ -33,7 +33,7 @@
 - PHP version: `8.3.30`
 - Public document root: `/home/u141166830/domains/budget-api.sanzmoses.com/public_html`
 - API base path: `/`
-- MySQL database name: `u141166830_budgetingapp`
+- MySQL database name: see `secrets/database.md` (source of truth)
 - Access methods available: SSH, FTP
 - Routing via `.htaccess`: yes
 

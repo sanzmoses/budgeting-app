@@ -74,7 +74,10 @@ mysql -u <user> -p <dbname> < apps/api/db/schema.sql
 mysql -u <user> -p <dbname> < apps/api/db/seed.sql
 ```
 
-Then fill in the DB values in `apps/api/.env`:
+Then fill in the DB values in `apps/api/.env`.
+Use `budgeting-app/secrets/database.md` as the source of truth for real budgeting-app values.
+
+Example local shape:
 
 ```
 DB_HOST=127.0.0.1
@@ -318,4 +321,6 @@ Never put backend secrets in the frontend env file.
 ## Notes
 
 - Keep real secrets out of git. Use `.env` files locally; set env vars in the hosting panel for production.
+- For budgeting-app-specific credentials and deploy values, use `secrets/` inside the `budgeting-app/` repo as the source of truth.
+- On Hostinger production app config, prefer `DB_HOST=localhost` or `127.0.0.1` instead of the public server IP.
 - Frontend and backend deploy independently.
