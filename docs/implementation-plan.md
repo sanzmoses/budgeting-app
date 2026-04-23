@@ -483,5 +483,5 @@ When resuming in another session:
 - Should income description remain free text or be partially standardized? To confirm during form implementation
 
 ## Recommended Next Step
-Phase 5 — budgets. Implement monthly category budgets, spent-this-month calculation,
-and remaining-budget display on the expense form.
+Phase 6 — settings management. Implement CRUD/maintenance flows for accounts,
+categories, subcategories, places, income sources, and users.

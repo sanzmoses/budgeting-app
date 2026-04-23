@@ -172,10 +172,12 @@ Phase 5 behavior:
 - Budget remaining auto-reflects saved expense changes because spent is computed from the ledger
 - Budgets tab allows month switching and per-category set/update actions
 
-Phase 5 checks to verify:
-- Correct total spent shown per category per month
-- Remaining budget updates after new/edited/deleted expense
-- Month switching works correctly
+Phase 5 checks verified on production:
+- Correct total spent shown per category per month ✓
+- Remaining budget updates after new/edited/deleted expense ✓
+- Month switching works correctly ✓
+- Live login, budgets tab, and budget create/update flow confirmed ✓
+- Production API aligned to budgeting-app source-of-truth DB secrets ✓
 
 ## Next phase: Phase 6 — settings management
 

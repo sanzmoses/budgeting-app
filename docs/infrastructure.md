@@ -53,6 +53,9 @@
 - frontend production vars stored in hosting panel/build environment
 - backend production vars stored in hosting panel or server config
 - DB credentials stored privately and never committed
+- Budgeting-app production DB values should follow `secrets/database.md`
+- On Hostinger deployed app config, use `DB_HOST=localhost` or `127.0.0.1`
+- Current production API has been verified working against the budgeting-app source-of-truth DB
 
 ## Domain Plan
 - frontend url: `https://budget.sanzmoses.com`
