@@ -1,27 +1,49 @@
-import { useState, useEffect } from 'react'
-import ExpenseForm      from './ExpenseForm'
-import IncomeForm       from './IncomeForm'
-import TransferForm     from './TransferForm'
-import TransactionList  from './TransactionList'
-import AccountBalances  from './AccountBalances'
-import BudgetManager    from './BudgetManager'
+import { useState, useEffect, useRef } from 'react'
+import {
+  PlusCircle,
+  TrendingUp,
+  ArrowLeftRight,
+  List,
+  Wallet,
+  BarChart2,
+  MoreHorizontal,
+  Moon,
+  Sun,
+  LogOut,
+  ChevronRight,
+} from 'lucide-react'
+import ExpenseForm     from './ExpenseForm'
+import IncomeForm      from './IncomeForm'
+import TransferForm    from './TransferForm'
+import TransactionList from './TransactionList'
+import AccountBalances from './AccountBalances'
+import BudgetManager   from './BudgetManager'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
-const TABS = [
-  { id: 'expense',      label: 'Expense'      },
-  { id: 'income',       label: 'Income'       },
-  { id: 'savings',      label: 'Savings'      },
-  { id: 'transactions', label: 'Transactions' },
-  { id: 'balances',     label: 'Balances'     },
-  { id: 'budgets',      label: 'Budgets'      },
+const NAV_ITEMS = [
+  { id: 'expense',      label: 'Expense',      icon: PlusCircle     },
+  { id: 'income',       label: 'Income',       icon: TrendingUp     },
+  { id: 'savings',      label: 'Savings',      icon: ArrowLeftRight },
+  { id: 'transactions', label: 'Transactions', icon: List           },
+  { id: 'balances',     label: 'Balances',     icon: Wallet         },
+  { id: 'budgets',      label: 'Budgets',      icon: BarChart2      },
 ]
 
-export default function AppShell({ user, token, onLogout }) {
-  const [activeTab, setActiveTab]       = useState('expense')
-  const [bootstrap, setBootstrap]       = useState(null)
+// Bottom nav shows first 4 items; 5th slot is the More button
+const BOTTOM_PRIMARY  = NAV_ITEMS.slice(0, 4)
+const BOTTOM_OVERFLOW = NAV_ITEMS.slice(4)
+
+export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMode }) {
+  const [activeTab,    setActiveTab]    = useState('expense')
+  const [bootstrap,    setBootstrap]    = useState(null)
   const [bootstrapErr, setBootstrapErr] = useState('')
-  const [refreshKey, setRefreshKey]     = useState(0)
+  const [refreshKey,   setRefreshKey]   = useState(0)
+  const [avatarOpen,   setAvatarOpen]   = useState(false)
+  const [moreOpen,     setMoreOpen]     = useState(false)
+
+  const avatarRef = useRef(null)
+  const moreRef   = useRef(null)
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/bootstrap`, {
@@ -32,6 +54,16 @@ export default function AppShell({ user, token, onLogout }) {
       .catch(() => setBootstrapErr('Could not load form options. Is the API running?'))
   }, [token])
 
+  // Close dropdowns when user clicks outside
+  useEffect(() => {
+    function onOutsideClick(e) {
+      if (avatarRef.current && !avatarRef.current.contains(e.target)) setAvatarOpen(false)
+      if (moreRef.current   && !moreRef.current.contains(e.target))   setMoreOpen(false)
+    }
+    document.addEventListener('mousedown', onOutsideClick)
+    return () => document.removeEventListener('mousedown', onOutsideClick)
+  }, [])
+
   async function handleLogout() {
     try {
       await fetch(`${API_BASE_URL}/auth/logout`, {
@@ -39,94 +71,205 @@ export default function AppShell({ user, token, onLogout }) {
         headers: { Authorization: `Bearer ${token}` },
       })
     } catch {
-      // Ignore network errors — clear local state regardless
+      // Ignore network errors; clear local state regardless
     }
     onLogout()
   }
 
-  // Called after any create/edit/delete so balances and lists stay in sync
   function handleDataChanged() {
     setRefreshKey(k => k + 1)
   }
 
+  function navigate(tabId) {
+    setActiveTab(tabId)
+    setMoreOpen(false)
+  }
+
+  const activeItem = NAV_ITEMS.find(n => n.id === activeTab)
+  const userInitial = (user.name || user.username || '?')[0].toUpperCase()
+  const overflowActive = BOTTOM_OVERFLOW.some(i => i.id === activeTab)
+
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Budgeting App</h1>
-        <span className="phase-badge">Phase 5</span>
-        <div className="user-bar">
-          <span className="user-name">{user.name}</span>
-          <button className="logout-btn" onClick={handleLogout}>Sign out</button>
+    <div className="shell">
+
+      {/* ── TOP HEADER ───────────────────────────────────────── */}
+      <header className="shell-header">
+        <div className="shell-header-left">
+          <span className="shell-logo">Budget</span>
+          <span className="shell-logo-dot">.</span>
+        </div>
+
+        <div className="shell-header-center shell-breadcrumb">
+          {activeItem?.label}
+        </div>
+
+        <div className="shell-header-right">
+          <div className="avatar-wrap" ref={avatarRef}>
+            <button
+              className="avatar-btn"
+              onClick={() => setAvatarOpen(o => !o)}
+              aria-label="User menu"
+              aria-expanded={avatarOpen}
+            >
+              {userInitial}
+            </button>
+
+            {avatarOpen && (
+              <div className="avatar-dropdown" role="menu">
+                <div className="avatar-dropdown-name">
+                  {user.name || user.username}
+                </div>
+                <button
+                  className="avatar-dropdown-item"
+                  role="menuitem"
+                  onClick={() => { toggleDarkMode(); setAvatarOpen(false) }}
+                >
+                  {darkMode ? <Sun size={14} /> : <Moon size={14} />}
+                  {darkMode ? 'Light Mode' : 'Dark Mode'}
+                </button>
+                <div className="avatar-dropdown-divider" />
+                <button
+                  className="avatar-dropdown-item avatar-dropdown-logout"
+                  role="menuitem"
+                  onClick={handleLogout}
+                >
+                  <LogOut size={14} />
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      <nav className="tab-bar">
-        {TABS.map(tab => (
+      {/* ── BODY (sidebar + main) ────────────────────────────── */}
+      <div className="shell-body">
+
+        {/* SIDEBAR — desktop only */}
+        <aside className="shell-sidebar">
+          <nav className="sidebar-nav" aria-label="Main navigation">
+            {NAV_ITEMS.map(item => {
+              const Icon = item.icon
+              return (
+                <button
+                  key={item.id}
+                  className={`sidebar-nav-item${activeTab === item.id ? ' active' : ''}`}
+                  onClick={() => setActiveTab(item.id)}
+                >
+                  <Icon size={15} />
+                  <span>{item.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+        </aside>
+
+        {/* MAIN CONTENT */}
+        <main className="shell-main">
+          {bootstrapErr && <p className="form-error" style={{ marginBottom: 16 }}>{bootstrapErr}</p>}
+
+          {activeTab === 'expense' && (
+            <section className="form-card">
+              <h2 className="section-title">New Expense</h2>
+              <ExpenseForm token={token} bootstrap={bootstrap} onCreated={handleDataChanged} />
+            </section>
+          )}
+
+          {activeTab === 'income' && (
+            <section className="form-card">
+              <h2 className="section-title">New Income</h2>
+              <IncomeForm token={token} bootstrap={bootstrap} onCreated={handleDataChanged} />
+            </section>
+          )}
+
+          {activeTab === 'savings' && (
+            <section className="form-card">
+              <h2 className="section-title">New Savings Transfer</h2>
+              <TransferForm token={token} bootstrap={bootstrap} onCreated={handleDataChanged} />
+            </section>
+          )}
+
+          {activeTab === 'transactions' && (
+            <section className="form-card">
+              <h2 className="section-title">Transactions</h2>
+              <TransactionList
+                token={token}
+                bootstrap={bootstrap}
+                refreshKey={refreshKey}
+                onChanged={handleDataChanged}
+              />
+            </section>
+          )}
+
+          {activeTab === 'balances' && (
+            <section className="form-card">
+              <h2 className="section-title">Account Balances</h2>
+              <AccountBalances token={token} refreshKey={refreshKey} />
+            </section>
+          )}
+
+          {activeTab === 'budgets' && (
+            <section className="form-card">
+              <h2 className="section-title">Monthly Budgets</h2>
+              <BudgetManager
+                token={token}
+                bootstrap={bootstrap}
+                refreshKey={refreshKey}
+                onChanged={handleDataChanged}
+              />
+            </section>
+          )}
+        </main>
+      </div>
+
+      {/* ── BOTTOM NAV — mobile only ─────────────────────────── */}
+      <nav className="bottom-nav" aria-label="Mobile navigation">
+        {BOTTOM_PRIMARY.map(item => {
+          const Icon = item.icon
+          return (
+            <button
+              key={item.id}
+              className={`bottom-nav-item${activeTab === item.id ? ' active' : ''}`}
+              onClick={() => navigate(item.id)}
+            >
+              <Icon size={20} />
+              <span>{item.label}</span>
+            </button>
+          )
+        })}
+
+        {/* More overflow button */}
+        <div className="bottom-nav-more-wrap" ref={moreRef}>
+          {moreOpen && (
+            <div className="more-popup" role="menu">
+              {BOTTOM_OVERFLOW.map(item => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    className={`more-popup-item${activeTab === item.id ? ' active' : ''}`}
+                    role="menuitem"
+                    onClick={() => navigate(item.id)}
+                  >
+                    <Icon size={16} />
+                    <span>{item.label}</span>
+                    <ChevronRight size={13} className="more-popup-arrow" />
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           <button
-            key={tab.id}
-            className={`tab-btn${activeTab === tab.id ? ' active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+            className={`bottom-nav-item${overflowActive ? ' active' : ''}`}
+            onClick={() => setMoreOpen(o => !o)}
+            aria-expanded={moreOpen}
           >
-            {tab.label}
+            <MoreHorizontal size={20} />
+            <span>More</span>
           </button>
-        ))}
+        </div>
       </nav>
-
-      <main className="app-main">
-        {bootstrapErr && <p className="form-error">{bootstrapErr}</p>}
-
-        {activeTab === 'expense' && (
-          <section className="form-card">
-            <h2>New Expense</h2>
-            <ExpenseForm token={token} bootstrap={bootstrap} onCreated={handleDataChanged} />
-          </section>
-        )}
-
-        {activeTab === 'income' && (
-          <section className="form-card">
-            <h2>New Income</h2>
-            <IncomeForm token={token} bootstrap={bootstrap} onCreated={handleDataChanged} />
-          </section>
-        )}
-
-        {activeTab === 'savings' && (
-          <section className="form-card">
-            <h2>New Savings Transfer</h2>
-            <TransferForm token={token} bootstrap={bootstrap} onCreated={handleDataChanged} />
-          </section>
-        )}
-
-        {activeTab === 'transactions' && (
-          <section className="form-card">
-            <h2>Transactions</h2>
-            <TransactionList
-              token={token}
-              bootstrap={bootstrap}
-              refreshKey={refreshKey}
-              onChanged={handleDataChanged}
-            />
-          </section>
-        )}
-
-        {activeTab === 'balances' && (
-          <section className="form-card">
-            <h2>Account Balances</h2>
-            <AccountBalances token={token} refreshKey={refreshKey} />
-          </section>
-        )}
-
-        {activeTab === 'budgets' && (
-          <section className="form-card">
-            <h2>Monthly Budgets</h2>
-            <BudgetManager
-              token={token}
-              bootstrap={bootstrap}
-              refreshKey={refreshKey}
-              onChanged={handleDataChanged}
-            />
-          </section>
-        )}
-      </main>
     </div>
   )
 }

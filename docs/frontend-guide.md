@@ -2,9 +2,26 @@
 
 Project-specific frontend and UI guide for the budgeting app.
 
-Use this together with the workspace-level `FRONTEND_GUIDE.md`.
+## Current implementation (Phase 5 UI refresh — 2026-04-23)
 
-## Product direction
+The UI was redesigned with an **IDE-like dark-first design language** inspired by VS Code:
+
+- **Dark default** with light mode toggle (stored in `localStorage` under `budget_theme`)
+- **Sharp corners** (no border radius), flat surfaces, minimal shadow
+- **CSS custom properties** drive all theming — see `:root` and `[data-theme="light"]` blocks in `App.css`
+- **Desktop layout**: fixed sidebar (200 px) + top header (48 px) + scrollable main area
+- **Mobile layout**: top header + scrollable content + fixed bottom nav (60 px)
+- **Mobile bottom nav**: 4 primary items + "More" popup for overflow (Balances, Budgets)
+- **Form rows stack** on mobile (≤ 768 px) via `flex-direction: column` on `.form-row`
+- **Avatar dropdown** (top-right): dark/light toggle + sign out
+- **Login page**: header + left sidebar panel (desktop), simplified single-column (mobile)
+- **lucide-react** added for nav icons (PlusCircle, TrendingUp, ArrowLeftRight, List, Wallet, BarChart2, MoreHorizontal, Moon, Sun, LogOut, ChevronRight)
+
+Palette references VS Code dark: `#1e1e1e` base, `#252526` surface, `#007acc` accent.
+
+---
+
+## Product direction (long-term vision)
 
 The budgeting app should feel like a premium futuristic dark dashboard.
 
