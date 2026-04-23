@@ -4,6 +4,7 @@ import IncomeForm       from './IncomeForm'
 import TransferForm     from './TransferForm'
 import TransactionList  from './TransactionList'
 import AccountBalances  from './AccountBalances'
+import BudgetManager    from './BudgetManager'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'savings',      label: 'Savings'      },
   { id: 'transactions', label: 'Transactions' },
   { id: 'balances',     label: 'Balances'     },
+  { id: 'budgets',      label: 'Budgets'      },
 ]
 
 export default function AppShell({ user, token, onLogout }) {
@@ -51,7 +53,7 @@ export default function AppShell({ user, token, onLogout }) {
     <div className="app">
       <header className="app-header">
         <h1>Budgeting App</h1>
-        <span className="phase-badge">Phase 4</span>
+        <span className="phase-badge">Phase 5</span>
         <div className="user-bar">
           <span className="user-name">{user.name}</span>
           <button className="logout-btn" onClick={handleLogout}>Sign out</button>
@@ -110,6 +112,18 @@ export default function AppShell({ user, token, onLogout }) {
           <section className="form-card">
             <h2>Account Balances</h2>
             <AccountBalances token={token} refreshKey={refreshKey} />
+          </section>
+        )}
+
+        {activeTab === 'budgets' && (
+          <section className="form-card">
+            <h2>Monthly Budgets</h2>
+            <BudgetManager
+              token={token}
+              bootstrap={bootstrap}
+              refreshKey={refreshKey}
+              onChanged={handleDataChanged}
+            />
           </section>
         )}
       </main>

@@ -66,5 +66,5 @@ Set production env values in the Hostinger panel (do not upload `.env` to produc
 
 ## Notes
 
-- Auth (JWT) comes in Phase 2.
+- Auth is implemented with bearer tokens stored server-side (`auth_tokens` table).
 - Keep backend secrets server-side only. Never expose them to the frontend.

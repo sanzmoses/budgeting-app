@@ -249,6 +249,47 @@ curl -s http://localhost:8000/accounts/1/balance \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
+### Budgets (Phase 5)
+
+Phase 5 adds monthly category budgets and budget visibility on the expense form.
+
+Additional API endpoints (all require `Authorization: Bearer <token>`):
+
+| Endpoint                                  | Method | Description |
+| ----------------------------------------- | ------ | ----------- |
+| `/budgets?month=2026-04`                  | GET    | List monthly budgets with spent/remaining |
+| `/budgets/summary?month=2026-04&category_id=4` | GET    | Get one category's month summary |
+| `/budgets`                                | POST   | Create or upsert a monthly budget |
+| `/budgets/{id}`                           | PUT    | Update a monthly budget |
+
+**List budgets for a month:**
+```bash
+curl -s "http://localhost:8000/budgets?month=2026-04" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+**Create or upsert a budget:**
+```bash
+curl -s -X POST http://localhost:8000/budgets \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "month": "2026-04",
+    "category_id": 4,
+    "amount": 8500.00
+  }' | jq .
+```
+
+**Update a budget by id:**
+```bash
+curl -s -X PUT http://localhost:8000/budgets/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "amount": 9000.00
+  }' | jq .
+```
+
 ### Health checks
 
 | Endpoint                        | Expected response        |

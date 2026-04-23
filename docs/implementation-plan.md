@@ -9,6 +9,7 @@ This document captures the agreed planning decisions before implementation start
 - Phase 2 complete — bearer token auth, login/logout/me endpoints, frontend login flow
 - Phase 3 complete — transaction entry (expense/income/transfer), transaction list, bootstrap endpoint
 - Phase 4 complete — transaction edit/delete, soft-delete, computed account balances, balances tab
+- Phase 5 complete — monthly budgets CRUD, spent-this-month calculation, remaining-budget display on expense form
 - This document is the source of truth for implementation planning.
 - Implementation should proceed in phases and each phase should be testable before continuing.
 

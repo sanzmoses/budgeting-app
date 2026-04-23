@@ -1,9 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 function today() {
   return new Date().toISOString().split('T')[0]
+}
+
+function monthFromDate(value) {
+  return value ? value.slice(0, 7) : today().slice(0, 7)
+}
+
+function fmt(amount) {
+  return Number(amount || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 }
 
 export default function ExpenseForm({ token, bootstrap, onCreated }) {
@@ -17,10 +28,33 @@ export default function ExpenseForm({ token, bootstrap, onCreated }) {
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
+  const [budgetInfo, setBudgetInfo] = useState(null)
+  const [budgetLoading, setBudgetLoading] = useState(false)
 
   const subcategories = bootstrap
     ? bootstrap.subcategories.filter(s => s.category_id === Number(categoryId))
     : []
+
+  const activeMonth = useMemo(() => monthFromDate(date), [date])
+
+  useEffect(() => {
+    if (!categoryId) {
+      setBudgetInfo(null)
+      return
+    }
+
+    setBudgetLoading(true)
+    fetch(`${API_BASE_URL}/budgets/summary?month=${activeMonth}&category_id=${categoryId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const payload = await res.json()
+        if (!res.ok) throw new Error(payload.error || 'Failed to load budget')
+        setBudgetInfo(payload)
+      })
+      .catch(() => setBudgetInfo(null))
+      .finally(() => setBudgetLoading(false))
+  }, [token, activeMonth, categoryId])
 
   function handleCategoryChange(e) {
     setCategoryId(e.target.value)
@@ -132,6 +166,36 @@ export default function ExpenseForm({ token, bootstrap, onCreated }) {
           ))}
         </select>
       </div>
+
+      {categoryId && (
+        <div className="budget-summary-card">
+          <div className="budget-summary-title">Budget for {activeMonth}</div>
+          {budgetLoading && <div className="budget-summary-meta">Loading budget…</div>}
+          {!budgetLoading && budgetInfo && (
+            <>
+              <div className="budget-summary-grid">
+                <div>
+                  <span className="budget-summary-label">Budget</span>
+                  <strong>PHP {fmt(budgetInfo.budget_amount)}</strong>
+                </div>
+                <div>
+                  <span className="budget-summary-label">Spent</span>
+                  <strong>PHP {fmt(budgetInfo.spent_amount)}</strong>
+                </div>
+                <div>
+                  <span className="budget-summary-label">Remaining</span>
+                  <strong className={budgetInfo.remaining_amount < 0 ? 'budget-negative' : ''}>
+                    PHP {fmt(budgetInfo.remaining_amount)}
+                  </strong>
+                </div>
+              </div>
+              {!budgetInfo.has_budget && (
+                <div className="budget-summary-meta">No monthly budget set yet for this category.</div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <div className="form-group">
         <label>Description <span className="optional">(optional)</span></label>

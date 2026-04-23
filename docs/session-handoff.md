@@ -9,6 +9,7 @@ Use this file to resume work quickly in a future session.
 - Phase 2 complete — bearer token auth, login/logout/me endpoints, frontend login flow
 - Phase 3 complete — transaction entry (expense/income/transfer), transaction list, bootstrap endpoint
 - Phase 4 complete — transaction edit/delete, computed account balances, balances tab
+- Phase 5 complete — monthly budgets CRUD, spent-this-month calculation, remaining-budget display on expense form
 
 ## Read first
 
@@ -37,7 +38,7 @@ Use this file to resume work quickly in a future session.
 | 2     | Auth                      | Complete    |
 | 3     | Transaction creation      | Complete    |
 | 4     | Transaction mgmt/balances | Complete    |
-| 5     | Budgets                   | Not started |
+| 5     | Budgets                   | Complete    |
 | 6     | Settings management       | Not started |
 | 7     | Reports                   | Deferred    |
 
@@ -143,21 +144,40 @@ Phase 4 checks:
 - Delete confirmation prevents accidental deletes ✓
 - Balances tab auto-refreshes after create/edit/delete ✓
 
-## Next phase: Phase 5 — budgets
+## Phase 5 — what was completed
 
-Goal: connect planning budgets to expense entry.
+Goal completed: planning budgets are now connected to expense entry.
 
-Deliverables:
-- `GET /budgets?month=YYYY-MM` — list budgets for a month
-- `POST /budgets` — create/upsert a monthly category budget
-- `PUT /budgets/{id}` — update a budget
-- Spent-this-month calculation per category
-- Remaining-budget display on the expense form
+Files added:
+- `apps/web/src/BudgetManager.jsx` — month-based budget management UI for all categories
 
-Checks before moving to Phase 6:
+Files modified:
+- `apps/api/index.php` — added budget helpers and routes; bumped version to 0.5.0 / phase 5
+- `apps/web/src/ExpenseForm.jsx` — added category budget summary card (budget/spent/remaining)
+- `apps/web/src/AppShell.jsx` — added Budgets tab and bumped phase badge to Phase 5
+- `apps/web/src/App.css` — added budget summary and budget manager styles
+- `docs/implementation-plan.md` — phase status updated
+- `docs/session-handoff.md` — phase status updated
+- `apps/api/README.md` — auth note corrected
+
+New API routes (all auth-protected):
+- `GET /budgets?month=YYYY-MM` — list monthly budgets with spent and remaining
+- `GET /budgets/summary?month=YYYY-MM&category_id={id}` — category budget summary for expense form
+- `POST /budgets` — create or upsert a monthly budget for one category
+- `PUT /budgets/{id}` — update a monthly budget amount
+
+Phase 5 behavior:
+- Budgets are stored per category per month
+- Expense form now loads the selected category's budget summary for the chosen transaction month
+- Budget remaining auto-reflects saved expense changes because spent is computed from the ledger
+- Budgets tab allows month switching and per-category set/update actions
+
+Phase 5 checks to verify:
 - Correct total spent shown per category per month
 - Remaining budget updates after new/edited/deleted expense
 - Month switching works correctly
+
+## Next phase: Phase 6 — settings management
 
 ## Rule for future sessions
 

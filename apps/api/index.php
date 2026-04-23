@@ -49,9 +49,9 @@ if ($method === 'GET' && $path === '/health') {
 if ($method === 'GET' && $path === '/') {
     echo json_encode([
         'app'     => APP_NAME,
-        'version' => '0.4.0',
-        'phase'   => 4,
-        'status'  => 'Phase 4 — transaction management and balances',
+        'version' => '0.5.0',
+        'phase'   => 5,
+        'status'  => 'Phase 5 — monthly budgets',
     ]);
     exit;
 }
@@ -475,6 +475,75 @@ function compute_account_balance(int $account_id): ?array
     ];
 }
 
+function normalize_budget_month(string $value): ?string
+{
+    $value = trim($value);
+    if (preg_match('/^\d{4}-\d{2}$/', $value)) {
+        return $value . '-01';
+    }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return date('Y-m-01', strtotime($value));
+    }
+    return null;
+}
+
+function monthly_budget_summary(string $month, int $categoryId): array
+{
+    $budgetMonth = normalize_budget_month($month);
+    if ($budgetMonth === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'month must be YYYY-MM or YYYY-MM-DD']);
+        exit;
+    }
+
+    $stmt = db()->prepare('SELECT id, name FROM categories WHERE id = ? LIMIT 1');
+    $stmt->execute([$categoryId]);
+    $category = $stmt->fetch();
+    if (!$category) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Category not found']);
+        exit;
+    }
+
+    $stmt = db()->prepare(
+        'SELECT id, amount
+         FROM monthly_budgets
+         WHERE budget_month = ? AND category_id = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$budgetMonth, $categoryId]);
+    $budget = $stmt->fetch();
+
+    $monthStart = $budgetMonth;
+    $monthEnd = date('Y-m-t', strtotime($budgetMonth));
+
+    $stmt = db()->prepare(
+        'SELECT COALESCE(SUM(amount), 0) AS spent
+         FROM transactions
+         WHERE deleted_at IS NULL
+           AND type = "expense"
+           AND category_id = ?
+           AND transaction_date >= ?
+           AND transaction_date <= ?'
+    );
+    $stmt->execute([$categoryId, $monthStart, $monthEnd]);
+    $spent = (float) ($stmt->fetch()['spent'] ?? 0);
+
+    $budgetAmount = $budget ? (float) $budget['amount'] : 0.0;
+
+    return [
+        'month'            => substr($budgetMonth, 0, 7),
+        'budget_month'     => $budgetMonth,
+        'category_id'      => (int) $category['id'],
+        'category_name'    => $category['name'],
+        'budget_id'        => $budget ? (int) $budget['id'] : null,
+        'budget_amount'    => round($budgetAmount, 2),
+        'spent_amount'     => round($spent, 2),
+        'remaining_amount' => round($budgetAmount - $spent, 2),
+        'has_budget'       => $budget ? true : false,
+    ];
+}
+
 // ---------------------------------------------------------------------------
 // GET /accounts/balances — computed balances for all active accounts
 // ---------------------------------------------------------------------------
@@ -489,6 +558,152 @@ if ($method === 'GET' && $path === '/accounts/balances') {
     $balances = array_map('compute_account_balance', $ids);
 
     echo json_encode(['balances' => $balances]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /budgets?month=YYYY-MM — list monthly budgets with spent/remaining
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/budgets') {
+    require_auth();
+
+    $budgetMonth = normalize_budget_month($_GET['month'] ?? date('Y-m'));
+    if ($budgetMonth === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'month must be YYYY-MM']);
+        exit;
+    }
+
+    $stmt = db()->prepare(
+        'SELECT
+            mb.id,
+            mb.budget_month,
+            mb.category_id,
+            c.name AS category_name,
+            mb.amount,
+            COALESCE(SUM(t.amount), 0) AS spent_amount
+         FROM monthly_budgets mb
+         JOIN categories c ON c.id = mb.category_id
+         LEFT JOIN transactions t
+           ON t.category_id = mb.category_id
+          AND t.type = "expense"
+          AND t.deleted_at IS NULL
+          AND t.transaction_date >= mb.budget_month
+          AND t.transaction_date <= LAST_DAY(mb.budget_month)
+         WHERE mb.budget_month = ?
+         GROUP BY mb.id, mb.budget_month, mb.category_id, c.name, mb.amount
+         ORDER BY c.sort_order, c.name'
+    );
+    $stmt->execute([$budgetMonth]);
+    $rows = $stmt->fetchAll();
+
+    $budgets = array_map(function ($row) {
+        $amount = (float) $row['amount'];
+        $spent = (float) $row['spent_amount'];
+        return [
+            'id'               => (int) $row['id'],
+            'budget_month'     => $row['budget_month'],
+            'month'            => substr($row['budget_month'], 0, 7),
+            'category_id'      => (int) $row['category_id'],
+            'category_name'    => $row['category_name'],
+            'amount'           => round($amount, 2),
+            'spent_amount'     => round($spent, 2),
+            'remaining_amount' => round($amount - $spent, 2),
+        ];
+    }, $rows);
+
+    echo json_encode([
+        'month' => substr($budgetMonth, 0, 7),
+        'count' => count($budgets),
+        'budgets' => $budgets,
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /budgets/summary?month=YYYY-MM&category_id=ID
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/budgets/summary') {
+    require_auth();
+
+    $categoryId = (int) ($_GET['category_id'] ?? 0);
+    if ($categoryId <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'category_id is required']);
+        exit;
+    }
+
+    echo json_encode(monthly_budget_summary($_GET['month'] ?? date('Y-m'), $categoryId));
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// POST /budgets — create or upsert a monthly budget for one category
+// ---------------------------------------------------------------------------
+if ($method === 'POST' && $path === '/budgets') {
+    $user = require_auth();
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $budgetMonth = normalize_budget_month($body['month'] ?? '');
+    $categoryId = (int) ($body['category_id'] ?? 0);
+    $amount = $body['amount'] ?? null;
+
+    if ($budgetMonth === null) {
+        http_response_code(400);
+        echo json_encode(['error' => 'month is required (YYYY-MM)']);
+        exit;
+    }
+    if ($categoryId <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'category_id is required']);
+        exit;
+    }
+    if ($amount === null || !is_numeric($amount) || (float) $amount < 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'amount must be 0 or greater']);
+        exit;
+    }
+    $amount = round((float) $amount, 2);
+
+    db()->prepare(
+        'INSERT INTO monthly_budgets (budget_month, category_id, amount, created_by_user_id)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE amount = VALUES(amount)'
+    )->execute([$budgetMonth, $categoryId, $amount, $user['id']]);
+
+    http_response_code(201);
+    echo json_encode(monthly_budget_summary($budgetMonth, $categoryId));
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// PUT /budgets/{id} — update a monthly budget amount
+// ---------------------------------------------------------------------------
+if ($method === 'PUT' && preg_match('#^/budgets/(\d+)$#', $path, $m)) {
+    require_auth();
+    $id = (int) $m[1];
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $amount = $body['amount'] ?? null;
+    if ($amount === null || !is_numeric($amount) || (float) $amount < 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'amount must be 0 or greater']);
+        exit;
+    }
+    $amount = round((float) $amount, 2);
+
+    $stmt = db()->prepare('SELECT id, budget_month, category_id FROM monthly_budgets WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    $budget = $stmt->fetch();
+    if (!$budget) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Budget not found']);
+        exit;
+    }
+
+    db()->prepare('UPDATE monthly_budgets SET amount = ? WHERE id = ?')->execute([$amount, $id]);
+
+    echo json_encode(monthly_budget_summary($budget['budget_month'], (int) $budget['category_id']));
     exit;
 }
 

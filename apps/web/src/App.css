@@ -673,6 +673,106 @@
 .btn-submit--transfer:hover:not(:disabled) { background: #0369a1; }
 
 /* ---------------------------------------------------------------------------
+   Budget summary / manager
+   --------------------------------------------------------------------------- */
+
+.budget-summary-card {
+  border: 1px solid #e5e7eb;
+  background: #fafafa;
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.budget-summary-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.budget-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.budget-summary-label,
+.budget-summary-meta,
+.budget-meta {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.budget-negative {
+  color: #dc2626;
+}
+
+.budget-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.budget-toolbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.budget-month-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.budget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.budget-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.budget-category {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.budget-item-form {
+  display: flex;
+  gap: 0.625rem;
+}
+
+.budget-item-form input {
+  flex: 1;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.9rem;
+  background: #fff;
+  outline: none;
+}
+
+.budget-item-form input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+/* ---------------------------------------------------------------------------
    Account balances panel
    --------------------------------------------------------------------------- */
 
