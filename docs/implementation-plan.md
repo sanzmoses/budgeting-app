@@ -10,6 +10,8 @@ This document captures the agreed planning decisions before implementation start
 - Phase 3 complete — transaction entry (expense/income/transfer), transaction list, bootstrap endpoint
 - Phase 4 complete — transaction edit/delete, soft-delete, computed account balances, balances tab
 - Phase 5 complete — monthly budgets CRUD, spent-this-month calculation, remaining-budget display on expense form
+- Phase 6 in progress — accounts settings CRUD started, including guarded delete confirmation and cascading transaction cleanup
+- Phase 6 now also includes subcategories CRUD/settings UI (create + update; inactive filtering supported via bootstrap)
 - This document is the source of truth for implementation planning.
 - Implementation should proceed in phases and each phase should be testable before continuing.
 

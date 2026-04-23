@@ -49,9 +49,9 @@ if ($method === 'GET' && $path === '/health') {
 if ($method === 'GET' && $path === '/') {
     echo json_encode([
         'app'     => APP_NAME,
-        'version' => '0.5.0',
-        'phase'   => 5,
-        'status'  => 'Phase 5 — monthly budgets',
+        'version' => '0.6.0',
+        'phase'   => 6,
+        'status'  => 'Phase 6 — settings management',
     ]);
     exit;
 }
@@ -487,6 +487,18 @@ function normalize_budget_month(string $value): ?string
     return null;
 }
 
+function subcategory_payload(array $row): array
+{
+    return [
+        'id' => (int) $row['id'],
+        'category_id' => (int) $row['category_id'],
+        'category_name' => $row['category_name'] ?? null,
+        'name' => $row['name'],
+        'is_active' => (bool) $row['is_active'],
+        'sort_order' => (int) $row['sort_order'],
+    ];
+}
+
 function monthly_budget_summary(string $month, int $categoryId): array
 {
     $budgetMonth = normalize_budget_month($month);
@@ -542,6 +554,183 @@ function monthly_budget_summary(string $month, int $categoryId): array
         'remaining_amount' => round($budgetAmount - $spent, 2),
         'has_budget'       => $budget ? true : false,
     ];
+}
+
+// ---------------------------------------------------------------------------
+// GET /accounts — list accounts with computed balances
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/accounts') {
+    require_auth();
+
+    $rows = db()->query(
+        'SELECT id, name, type, opening_balance, currency, is_active, sort_order
+         FROM accounts
+         ORDER BY sort_order, name'
+    )->fetchAll();
+
+    $accounts = array_map(function ($row) {
+        $balance = compute_account_balance((int) $row['id']);
+        return [
+            'id' => (int) $row['id'],
+            'name' => $row['name'],
+            'type' => $row['type'],
+            'opening_balance' => (float) $row['opening_balance'],
+            'currency' => $row['currency'],
+            'is_active' => (bool) $row['is_active'],
+            'sort_order' => (int) $row['sort_order'],
+            'balance' => $balance ? (float) $balance['balance'] : 0.0,
+        ];
+    }, $rows);
+
+    echo json_encode(['accounts' => $accounts]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// POST /accounts — create account
+// ---------------------------------------------------------------------------
+if ($method === 'POST' && $path === '/accounts') {
+    require_auth();
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $name = trim($body['name'] ?? '');
+    $type = trim($body['type'] ?? 'checking');
+    $openingBalance = $body['opening_balance'] ?? 0;
+    $currency = strtoupper(trim($body['currency'] ?? 'PHP'));
+    $isActive = array_key_exists('is_active', $body) ? (int) !!$body['is_active'] : 1;
+    $sortOrder = (int) ($body['sort_order'] ?? 0);
+
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'name is required']);
+        exit;
+    }
+    if (!is_numeric($openingBalance)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'opening_balance must be numeric']);
+        exit;
+    }
+    if (!preg_match('/^[A-Z]{3}$/', $currency)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'currency must be a 3-letter code']);
+        exit;
+    }
+
+    db()->prepare(
+        'INSERT INTO accounts (name, type, opening_balance, currency, is_active, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)'
+    )->execute([$name, $type, round((float) $openingBalance, 2), $currency, $isActive, $sortOrder]);
+
+    $id = (int) db()->lastInsertId();
+    $account = compute_account_balance($id);
+    echo json_encode([
+        'id' => $id,
+        'name' => $name,
+        'type' => $type,
+        'opening_balance' => round((float) $openingBalance, 2),
+        'currency' => $currency,
+        'is_active' => (bool) $isActive,
+        'sort_order' => $sortOrder,
+        'balance' => $account ? (float) $account['balance'] : round((float) $openingBalance, 2),
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// PUT /accounts/{id} — update account
+// ---------------------------------------------------------------------------
+if ($method === 'PUT' && preg_match('#^/accounts/(\d+)$#', $path, $m)) {
+    require_auth();
+    $id = (int) $m[1];
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $stmt = db()->prepare('SELECT id FROM accounts WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Account not found']);
+        exit;
+    }
+
+    $name = trim($body['name'] ?? '');
+    $type = trim($body['type'] ?? 'checking');
+    $openingBalance = $body['opening_balance'] ?? 0;
+    $currency = strtoupper(trim($body['currency'] ?? 'PHP'));
+    $isActive = array_key_exists('is_active', $body) ? (int) !!$body['is_active'] : 1;
+    $sortOrder = (int) ($body['sort_order'] ?? 0);
+
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'name is required']);
+        exit;
+    }
+    if (!is_numeric($openingBalance)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'opening_balance must be numeric']);
+        exit;
+    }
+    if (!preg_match('/^[A-Z]{3}$/', $currency)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'currency must be a 3-letter code']);
+        exit;
+    }
+
+    db()->prepare(
+        'UPDATE accounts
+         SET name = ?, type = ?, opening_balance = ?, currency = ?, is_active = ?, sort_order = ?
+         WHERE id = ?'
+    )->execute([$name, $type, round((float) $openingBalance, 2), $currency, $isActive, $sortOrder, $id]);
+
+    $account = compute_account_balance($id);
+    echo json_encode([
+        'id' => $id,
+        'name' => $name,
+        'type' => $type,
+        'opening_balance' => round((float) $openingBalance, 2),
+        'currency' => $currency,
+        'is_active' => (bool) $isActive,
+        'sort_order' => $sortOrder,
+        'balance' => $account ? (float) $account['balance'] : round((float) $openingBalance, 2),
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /accounts/{id} — hard delete account and all related transactions
+// ---------------------------------------------------------------------------
+if ($method === 'DELETE' && preg_match('#^/accounts/(\d+)$#', $path, $m)) {
+    require_auth();
+    $id = (int) $m[1];
+
+    $stmt = db()->prepare('SELECT id FROM accounts WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Account not found']);
+        exit;
+    }
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            'DELETE FROM transactions
+             WHERE account_id = ? OR from_account_id = ? OR to_account_id = ?'
+        )->execute([$id, $id, $id]);
+
+        $pdo->prepare('DELETE FROM accounts WHERE id = ?')->execute([$id]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to delete account']);
+        exit;
+    }
+
+    http_response_code(204);
+    exit;
 }
 
 // ---------------------------------------------------------------------------
@@ -704,6 +893,133 @@ if ($method === 'PUT' && preg_match('#^/budgets/(\d+)$#', $path, $m)) {
     db()->prepare('UPDATE monthly_budgets SET amount = ? WHERE id = ?')->execute([$amount, $id]);
 
     echo json_encode(monthly_budget_summary($budget['budget_month'], (int) $budget['category_id']));
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /subcategories — list all subcategories with category names
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/subcategories') {
+    require_auth();
+
+    $rows = db()->query(
+        'SELECT sc.id, sc.category_id, c.name AS category_name, sc.name, sc.is_active, sc.sort_order
+         FROM subcategories sc
+         JOIN categories c ON c.id = sc.category_id
+         ORDER BY c.sort_order, c.name, sc.sort_order, sc.name'
+    )->fetchAll();
+
+    echo json_encode([
+        'subcategories' => array_map('subcategory_payload', $rows),
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// POST /subcategories — create subcategory
+// ---------------------------------------------------------------------------
+if ($method === 'POST' && $path === '/subcategories') {
+    require_auth();
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $categoryId = (int) ($body['category_id'] ?? 0);
+    $name = trim($body['name'] ?? '');
+    $isActive = array_key_exists('is_active', $body) ? (int) !!$body['is_active'] : 1;
+    $sortOrder = (int) ($body['sort_order'] ?? 0);
+
+    if ($categoryId <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'category_id is required']);
+        exit;
+    }
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'name is required']);
+        exit;
+    }
+
+    $stmt = db()->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
+    $stmt->execute([$categoryId]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Category not found']);
+        exit;
+    }
+
+    db()->prepare(
+        'INSERT INTO subcategories (category_id, name, is_active, sort_order)
+         VALUES (?, ?, ?, ?)'
+    )->execute([$categoryId, $name, $isActive, $sortOrder]);
+
+    $id = (int) db()->lastInsertId();
+    $stmt = db()->prepare(
+        'SELECT sc.id, sc.category_id, c.name AS category_name, sc.name, sc.is_active, sc.sort_order
+         FROM subcategories sc
+         JOIN categories c ON c.id = sc.category_id
+         WHERE sc.id = ? LIMIT 1'
+    );
+    $stmt->execute([$id]);
+
+    http_response_code(201);
+    echo json_encode(subcategory_payload($stmt->fetch()));
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// PUT /subcategories/{id} — update subcategory
+// ---------------------------------------------------------------------------
+if ($method === 'PUT' && preg_match('#^/subcategories/(\d+)$#', $path, $m)) {
+    require_auth();
+    $id = (int) $m[1];
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $stmt = db()->prepare('SELECT id FROM subcategories WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Subcategory not found']);
+        exit;
+    }
+
+    $categoryId = (int) ($body['category_id'] ?? 0);
+    $name = trim($body['name'] ?? '');
+    $isActive = array_key_exists('is_active', $body) ? (int) !!$body['is_active'] : 1;
+    $sortOrder = (int) ($body['sort_order'] ?? 0);
+
+    if ($categoryId <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'category_id is required']);
+        exit;
+    }
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'name is required']);
+        exit;
+    }
+
+    $stmt = db()->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
+    $stmt->execute([$categoryId]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Category not found']);
+        exit;
+    }
+
+    db()->prepare(
+        'UPDATE subcategories
+         SET category_id = ?, name = ?, is_active = ?, sort_order = ?
+         WHERE id = ?'
+    )->execute([$categoryId, $name, $isActive, $sortOrder, $id]);
+
+    $stmt = db()->prepare(
+        'SELECT sc.id, sc.category_id, c.name AS category_name, sc.name, sc.is_active, sc.sort_order
+         FROM subcategories sc
+         JOIN categories c ON c.id = sc.category_id
+         WHERE sc.id = ? LIMIT 1'
+    );
+    $stmt->execute([$id]);
+
+    echo json_encode(subcategory_payload($stmt->fetch()));
     exit;
 }
 

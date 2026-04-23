@@ -1056,6 +1056,123 @@ input, select, textarea {
 }
 
 /* ============================================================
+   SETTINGS MANAGER
+   ============================================================ */
+
+.settings-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.settings-form {
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 16px;
+}
+
+.settings-form-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.settings-actions {
+  justify-content: flex-end;
+}
+
+.settings-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.settings-checkbox input {
+  accent-color: var(--accent);
+}
+
+.settings-list-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+}
+
+.settings-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-item-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.settings-item-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.settings-item-actions {
+  margin-top: 0;
+  align-self: flex-start;
+}
+
+.delete-warning-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.delete-confirm-btn {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.delete-confirm-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+/* ============================================================
    ACCOUNT BALANCES
    ============================================================ */
 

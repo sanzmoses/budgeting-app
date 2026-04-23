@@ -6,28 +6,33 @@ import {
   List,
   Wallet,
   BarChart2,
+  Settings,
   MoreHorizontal,
   Moon,
   Sun,
   LogOut,
   ChevronRight,
 } from 'lucide-react'
-import ExpenseForm     from './ExpenseForm'
-import IncomeForm      from './IncomeForm'
-import TransferForm    from './TransferForm'
-import TransactionList from './TransactionList'
-import AccountBalances from './AccountBalances'
-import BudgetManager   from './BudgetManager'
+import ExpenseForm          from './ExpenseForm'
+import IncomeForm           from './IncomeForm'
+import TransferForm         from './TransferForm'
+import TransactionList      from './TransactionList'
+import AccountBalances      from './AccountBalances'
+import BudgetManager        from './BudgetManager'
+import AccountsManager      from './AccountsManager'
+import SubcategoriesManager from './SubcategoriesManager'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const NAV_ITEMS = [
-  { id: 'expense',      label: 'Expense',      icon: PlusCircle     },
-  { id: 'income',       label: 'Income',       icon: TrendingUp     },
-  { id: 'savings',      label: 'Savings',      icon: ArrowLeftRight },
-  { id: 'transactions', label: 'Transactions', icon: List           },
-  { id: 'balances',     label: 'Balances',     icon: Wallet         },
-  { id: 'budgets',      label: 'Budgets',      icon: BarChart2      },
+  { id: 'expense',       label: 'Expense',       icon: PlusCircle     },
+  { id: 'income',        label: 'Income',        icon: TrendingUp     },
+  { id: 'savings',       label: 'Savings',       icon: ArrowLeftRight },
+  { id: 'transactions',  label: 'Transactions',  icon: List           },
+  { id: 'balances',      label: 'Balances',      icon: Wallet         },
+  { id: 'budgets',       label: 'Budgets',       icon: BarChart2      },
+  { id: 'accounts',      label: 'Accounts',      icon: Settings       },
+  { id: 'subcategories', label: 'Subcategories', icon: Settings       },
 ]
 
 // Bottom nav shows first 4 items; 5th slot is the More button
@@ -52,7 +57,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
       .then(r => r.json())
       .then(data => setBootstrap(data))
       .catch(() => setBootstrapErr('Could not load form options. Is the API running?'))
-  }, [token])
+  }, [token, refreshKey])
 
   // Close dropdowns when user clicks outside
   useEffect(() => {
@@ -91,8 +96,6 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
 
   return (
     <div className="shell">
-
-      {/* ── TOP HEADER ───────────────────────────────────────── */}
       <header className="shell-header">
         <div className="shell-header-left">
           <span className="shell-logo">Budget</span>
@@ -142,10 +145,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
         </div>
       </header>
 
-      {/* ── BODY (sidebar + main) ────────────────────────────── */}
       <div className="shell-body">
-
-        {/* SIDEBAR — desktop only */}
         <aside className="shell-sidebar">
           <nav className="sidebar-nav" aria-label="Main navigation">
             {NAV_ITEMS.map(item => {
@@ -164,7 +164,6 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
           </nav>
         </aside>
 
-        {/* MAIN CONTENT */}
         <main className="shell-main">
           {bootstrapErr && <p className="form-error" style={{ marginBottom: 16 }}>{bootstrapErr}</p>}
 
@@ -219,10 +218,32 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
               />
             </section>
           )}
+
+          {activeTab === 'accounts' && (
+            <section className="form-card">
+              <h2 className="section-title">Accounts Settings</h2>
+              <AccountsManager
+                token={token}
+                refreshKey={refreshKey}
+                onChanged={handleDataChanged}
+              />
+            </section>
+          )}
+
+          {activeTab === 'subcategories' && (
+            <section className="form-card">
+              <h2 className="section-title">Subcategories Settings</h2>
+              <SubcategoriesManager
+                token={token}
+                bootstrap={bootstrap}
+                refreshKey={refreshKey}
+                onChanged={handleDataChanged}
+              />
+            </section>
+          )}
         </main>
       </div>
 
-      {/* ── BOTTOM NAV — mobile only ─────────────────────────── */}
       <nav className="bottom-nav" aria-label="Mobile navigation">
         {BOTTOM_PRIMARY.map(item => {
           const Icon = item.icon
@@ -238,7 +259,6 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
           )
         })}
 
-        {/* More overflow button */}
         <div className="bottom-nav-more-wrap" ref={moreRef}>
           {moreOpen && (
             <div className="more-popup" role="menu">

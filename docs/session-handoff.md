@@ -10,6 +10,8 @@ Use this file to resume work quickly in a future session.
 - Phase 3 complete — transaction entry (expense/income/transfer), transaction list, bootstrap endpoint
 - Phase 4 complete — transaction edit/delete, computed account balances, balances tab
 - Phase 5 complete — monthly budgets CRUD, spent-this-month calculation, remaining-budget display on expense form
+- Phase 6 started — accounts CRUD/settings UI added; account delete now requires typed confirmation and removes related transactions
+- Phase 6 continued — subcategories CRUD/settings UI added (create + update)
 
 ## Read first
 
