@@ -436,7 +436,7 @@ function fetch_transaction(int $id): ?array
 function compute_account_balance(int $account_id): ?array
 {
     $stmt = db()->prepare(
-        'SELECT id, name, opening_balance, currency FROM accounts WHERE id = ? LIMIT 1'
+        'SELECT id, name, type, opening_balance, currency FROM accounts WHERE id = ? LIMIT 1'
     );
     $stmt->execute([$account_id]);
     $acct = $stmt->fetch();
@@ -469,6 +469,7 @@ function compute_account_balance(int $account_id): ?array
     return [
         'id'              => (int)$acct['id'],
         'name'            => $acct['name'],
+        'type'            => $acct['type'],
         'currency'        => $acct['currency'],
         'opening_balance' => (float)$acct['opening_balance'],
         'balance'         => round($balance, 2),
