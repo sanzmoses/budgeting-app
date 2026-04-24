@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useToast } from './ToastProvider'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -7,15 +8,16 @@ function today() {
 }
 
 export default function TransferForm({ token, bootstrap, onCreated }) {
-  const [date, setDate]               = useState(today())
-  const [fromId, setFromId]           = useState('')
-  const [toId, setToId]               = useState('')
-  const [amount, setAmount]           = useState('')
-  const [label, setLabel]             = useState('')
+  const { showToast } = useToast()
+  const [date, setDate] = useState(today())
+  const [fromId, setFromId] = useState('')
+  const [toId, setToId] = useState('')
+  const [amount, setAmount] = useState('')
+  const [label, setLabel] = useState('')
   const [description, setDescription] = useState('')
-  const [loading, setLoading]         = useState(false)
-  const [error, setError]             = useState('')
-  const [success, setSuccess]         = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -23,7 +25,9 @@ export default function TransferForm({ token, bootstrap, onCreated }) {
     setSuccess('')
 
     if (fromId === toId) {
-      setError('Source and destination accounts must be different')
+      const nextError = 'Source and destination accounts must be different'
+      setError(nextError)
+      showToast({ tone: 'warning', message: nextError })
       return
     }
 
@@ -48,16 +52,21 @@ export default function TransferForm({ token, bootstrap, onCreated }) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to save transfer')
+        const nextError = data.error || 'Failed to save transfer'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
         return
       }
-      setSuccess(`Transfer saved (ID ${data.id})`)
+      const nextMessage = `Transfer saved (ID ${data.id})`
+      setSuccess(nextMessage)
+      showToast({ tone: 'success', message: nextMessage })
       setAmount('')
       setLabel('')
       setDescription('')
       onCreated?.()
     } catch {
       setError('Could not reach the server')
+      showToast({ tone: 'error', message: 'Could not reach the server' })
     } finally {
       setLoading(false)
     }
@@ -130,7 +139,7 @@ export default function TransferForm({ token, bootstrap, onCreated }) {
         />
       </div>
 
-      {error   && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{error}</p>}
       {success && <p className="form-success">{success}</p>}
 
       <button

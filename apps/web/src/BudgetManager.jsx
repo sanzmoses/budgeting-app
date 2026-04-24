@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useToast } from './ToastProvider'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -14,6 +15,7 @@ function fmt(amount) {
 }
 
 export default function BudgetManager({ token, bootstrap, refreshKey, onChanged }) {
+  const { showToast } = useToast()
   const [month, setMonth] = useState(currentMonth())
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -40,7 +42,11 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
         })
         setDrafts(nextDrafts)
       })
-      .catch((err) => setError(err.message || 'Could not load budgets'))
+      .catch((err) => {
+        const nextError = err.message || 'Could not load budgets'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
+      })
       .finally(() => setLoading(false))
   }, [token, month, refreshKey])
 
@@ -52,12 +58,19 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
     return map
   }, [data])
 
+  const totalMonthlyBudget = useMemo(() => {
+    if (!data?.budgets) return 0
+    return data.budgets.reduce((sum, budget) => sum + Number(budget.amount || 0), 0)
+  }, [data])
+
   async function saveBudget(categoryId) {
     const raw = drafts[categoryId] ?? ''
     const amount = Number(raw)
 
     if (raw === '' || Number.isNaN(amount) || amount < 0) {
-      setError('Budget amount must be 0 or greater')
+      const nextError = 'Budget amount must be 0 or greater'
+      setError(nextError)
+      showToast({ tone: 'warning', message: nextError })
       return
     }
 
@@ -87,7 +100,9 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
 
       const payload = await res.json()
       if (!res.ok) {
-        setError(payload.error || 'Failed to save budget')
+        const nextError = payload.error || 'Failed to save budget'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
         return
       }
 
@@ -100,10 +115,13 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
         }
       })
       setDrafts((prev) => ({ ...prev, [categoryId]: String(payload.amount) }))
-      setMessage(`Saved budget for ${payload.category_name}`)
+      const nextMessage = `Saved budget for ${payload.category_name}`
+      setMessage(nextMessage)
+      showToast({ tone: 'success', message: nextMessage })
       onChanged?.()
     } catch {
       setError('Could not reach the server')
+      showToast({ tone: 'error', message: 'Could not reach the server' })
     } finally {
       setSavingCategoryId(null)
     }
@@ -125,50 +143,58 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
       {message && <p className="form-success">{message}</p>}
 
       {!loading && (
-        <div className="budget-list">
-          {bootstrap.categories.map((category) => {
-            const budget = budgetsByCategoryId.get(category.id)
-            const spent = Number(budget?.spent_amount || 0)
-            const amount = Number(budget?.amount || 0)
-            const remaining = amount - spent
+        <>
+          <div className="budget-summary-card budget-summary-card--monthly-total">
+            <div className="budget-summary-title">Monthly Budget Total</div>
+            <div className="budget-monthly-total-value">PHP {fmt(totalMonthlyBudget)}</div>
+            <div className="budget-summary-meta">Sum of all category budgets for {month}.</div>
+          </div>
 
-            return (
-              <div key={category.id} className="budget-item">
-                <div className="budget-item-head">
-                  <div>
-                    <div className="budget-category">{category.name}</div>
-                    <div className="budget-meta">
-                      Spent: PHP {fmt(spent)} · Remaining:{' '}
-                      <span className={remaining < 0 ? 'budget-negative' : ''}>
-                        PHP {fmt(remaining)}
-                      </span>
+          <div className="budget-list">
+            {bootstrap.categories.map((category) => {
+              const budget = budgetsByCategoryId.get(category.id)
+              const spent = Number(budget?.spent_amount || 0)
+              const amount = Number(budget?.amount || 0)
+              const remaining = amount - spent
+
+              return (
+                <div key={category.id} className="budget-item">
+                  <div className="budget-item-head">
+                    <div>
+                      <div className="budget-category">{category.name}</div>
+                      <div className="budget-meta">
+                        Budget: PHP {fmt(amount)} · Spent: PHP {fmt(spent)} · Remaining:{' '}
+                        <span className={remaining < 0 ? 'budget-negative' : ''}>
+                          PHP {fmt(remaining)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="budget-item-form">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={drafts[category.id] ?? ''}
-                    onChange={e => setDrafts(prev => ({ ...prev, [category.id]: e.target.value }))}
-                    disabled={savingCategoryId === category.id}
-                  />
-                  <button
-                    type="button"
-                    className="btn-submit"
-                    onClick={() => saveBudget(category.id)}
-                    disabled={savingCategoryId === category.id}
-                  >
-                    {savingCategoryId === category.id ? 'Saving…' : budget ? 'Update' : 'Set Budget'}
-                  </button>
+                  <div className="budget-item-form">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={drafts[category.id] ?? ''}
+                      onChange={e => setDrafts(prev => ({ ...prev, [category.id]: e.target.value }))}
+                      disabled={savingCategoryId === category.id}
+                    />
+                    <button
+                      type="button"
+                      className="btn-submit"
+                      onClick={() => saveBudget(category.id)}
+                      disabled={savingCategoryId === category.id}
+                    >
+                      {savingCategoryId === category.id ? 'Saving…' : budget ? 'Update' : 'Set Budget'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
   )

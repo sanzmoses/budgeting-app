@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useToast } from './ToastProvider'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -18,16 +19,17 @@ function fmt(amount) {
 }
 
 export default function ExpenseForm({ token, bootstrap, onCreated }) {
-  const [date, setDate]           = useState(today())
+  const { showToast } = useToast()
+  const [date, setDate] = useState(today())
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
-  const [placeId, setPlaceId]     = useState('')
-  const [amount, setAmount]       = useState('')
+  const [placeId, setPlaceId] = useState('')
+  const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState('')
-  const [success, setSuccess]     = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [budgetInfo, setBudgetInfo] = useState(null)
   const [budgetLoading, setBudgetLoading] = useState(false)
 
@@ -87,16 +89,21 @@ export default function ExpenseForm({ token, bootstrap, onCreated }) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to save expense')
+        const nextError = data.error || 'Failed to save expense'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
         return
       }
-      setSuccess(`Expense saved (ID ${data.id})`)
+      const nextMessage = `Expense saved (ID ${data.id})`
+      setSuccess(nextMessage)
+      showToast({ tone: 'success', message: nextMessage })
       setAmount('')
       setDescription('')
       setPlaceId('')
       onCreated?.()
     } catch {
       setError('Could not reach the server')
+      showToast({ tone: 'error', message: 'Could not reach the server' })
     } finally {
       setLoading(false)
     }
@@ -208,7 +215,7 @@ export default function ExpenseForm({ token, bootstrap, onCreated }) {
         />
       </div>
 
-      {error   && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{error}</p>}
       {success && <p className="form-success">{success}</p>}
 
       <button

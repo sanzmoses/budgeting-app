@@ -27,6 +27,18 @@
   --danger-bg:   rgba(241, 76, 76, 0.14);
   --success:     #4ec9b0;
   --success-bg:  rgba(78, 201, 176, 0.14);
+  --warning:     #f59e0b;
+  --warning-bg:  rgba(245, 158, 11, 0.14);
+  --info:        #38bdf8;
+  --info-bg:     rgba(56, 189, 248, 0.14);
+  --account-checking: #3b82f6;
+  --account-checking-bg: rgba(59, 130, 246, 0.18);
+  --account-savings: #10b981;
+  --account-savings-bg: rgba(16, 185, 129, 0.18);
+  --account-cash: #f59e0b;
+  --account-cash-bg: rgba(245, 158, 11, 0.18);
+  --account-credit: #ef4444;
+  --account-credit-bg: rgba(239, 68, 68, 0.18);
   --shadow-lg:   0 8px 32px rgba(0, 0, 0, 0.55);
   --shadow-sm:   0 2px 8px  rgba(0, 0, 0, 0.35);
   --sidebar-width:      200px;
@@ -58,6 +70,18 @@
   --danger-bg:   rgba(196, 43, 28, 0.1);
   --success:     #107c10;
   --success-bg:  rgba(16, 124, 16, 0.1);
+  --warning:     #b76b00;
+  --warning-bg:  rgba(183, 107, 0, 0.1);
+  --info:        #0f6cbd;
+  --info-bg:     rgba(15, 108, 189, 0.1);
+  --account-checking: #2563eb;
+  --account-checking-bg: rgba(37, 99, 235, 0.12);
+  --account-savings: #059669;
+  --account-savings-bg: rgba(5, 150, 105, 0.12);
+  --account-cash: #d97706;
+  --account-cash-bg: rgba(217, 119, 6, 0.12);
+  --account-credit: #dc2626;
+  --account-credit-bg: rgba(220, 38, 38, 0.12);
   --shadow-lg:   0 8px 32px rgba(0, 0, 0, 0.14);
   --shadow-sm:   0 2px 8px  rgba(0, 0, 0, 0.08);
 }
@@ -345,6 +369,10 @@ input, select, textarea {
   border: 1px solid var(--border);
   padding: 20px 24px;
   max-width: 680px;
+}
+
+.form-card--wide {
+  max-width: 1040px;
 }
 
 /* ============================================================
@@ -802,6 +830,44 @@ input, select, textarea {
 .txn-type-badge--income   { background: var(--income-bg);   color: var(--income-color);   border: 1px solid color-mix(in srgb, var(--income-color) 30%, transparent);   }
 .txn-type-badge--transfer { background: var(--transfer-bg); color: var(--transfer-color); border: 1px solid color-mix(in srgb, var(--transfer-color) 30%, transparent); }
 
+.account-type-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.account-type-pill--checking {
+  background: var(--account-checking-bg);
+  color: var(--account-checking);
+  border-color: color-mix(in srgb, var(--account-checking) 38%, transparent);
+}
+
+.account-type-pill--savings {
+  background: var(--account-savings-bg);
+  color: var(--account-savings);
+  border-color: color-mix(in srgb, var(--account-savings) 38%, transparent);
+}
+
+.account-type-pill--cash {
+  background: var(--account-cash-bg);
+  color: var(--account-cash);
+  border-color: color-mix(in srgb, var(--account-cash) 38%, transparent);
+}
+
+.account-type-pill--credit {
+  background: var(--account-credit-bg);
+  color: var(--account-credit);
+  border-color: color-mix(in srgb, var(--account-credit) 38%, transparent);
+}
+
 /* Transaction action buttons */
 
 .txn-actions {
@@ -930,6 +996,10 @@ input, select, textarea {
   gap: 8px;
 }
 
+.budget-summary-card--monthly-total {
+  gap: 4px;
+}
+
 .budget-summary-title {
   font-size: 11px;
   font-weight: 700;
@@ -962,6 +1032,13 @@ input, select, textarea {
 
 .budget-summary-grid strong {
   font-size: 13px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-monthly-total-value {
+  font-size: 22px;
+  font-weight: 800;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -1179,23 +1256,75 @@ input, select, textarea {
 .balances-container {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
+}
+
+.balances-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.balance-section-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.balance-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.balance-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.balance-section-total {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--income-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-section-empty {
+  padding: 18px 0 6px;
+  text-align: left;
 }
 
 .balance-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
 }
 
 .balance-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 14px;
-  background: var(--bg-elevated);
+  gap: 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--bg-surface) 30%, transparent);
   border: 1px solid var(--border-light);
+}
+
+.balance-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .balance-name {
@@ -1219,9 +1348,9 @@ input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 12px 14px 0;
   border-top: 1px solid var(--border);
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .balance-total-label {
@@ -1237,6 +1366,84 @@ input, select, textarea {
   font-weight: 700;
   color: var(--income-color);
   font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   TOASTS
+   ============================================================ */
+
+.toast-stack {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 400;
+  pointer-events: none;
+}
+
+.toast {
+  min-width: 280px;
+  max-width: min(420px, calc(100vw - 28px));
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 12px 12px 14px;
+  pointer-events: auto;
+}
+
+.toast--success {
+  border-left-color: var(--success);
+}
+
+.toast--error {
+  border-left-color: var(--danger);
+}
+
+.toast--warning {
+  border-left-color: var(--warning);
+}
+
+.toast--info {
+  border-left-color: var(--info);
+}
+
+.toast-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toast-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+
+.toast-message {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.toast-close:hover {
+  color: var(--text-primary);
 }
 
 /* ============================================================
@@ -1403,6 +1610,36 @@ input, select, textarea {
 
   .budget-item-form .btn-submit {
     width: 100%;
+  }
+
+  .balances-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .balance-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .balance-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .balance-total {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .toast-stack {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+  }
+
+  .toast {
+    min-width: 0;
+    max-width: 100%;
   }
 }
 

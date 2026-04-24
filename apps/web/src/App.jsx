@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import LoginForm from './LoginForm'
 import AppShell  from './AppShell'
+import { ToastProvider } from './ToastProvider'
 import './App.css'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
@@ -77,13 +78,15 @@ function App() {
   }
 
   return (
-    <AppShell
-      user={user}
-      token={token}
-      onLogout={handleLogout}
-      darkMode={darkMode}
-      toggleDarkMode={toggleDarkMode}
-    />
+    <ToastProvider>
+      <AppShell
+        user={user}
+        token={token}
+        onLogout={handleLogout}
+        darkMode={darkMode}
+        toggleDarkMode={toggleDarkMode}
+      />
+    </ToastProvider>
   )
 }
 

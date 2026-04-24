@@ -13,42 +13,41 @@ import {
   LogOut,
   ChevronRight,
 } from 'lucide-react'
-import ExpenseForm          from './ExpenseForm'
-import IncomeForm           from './IncomeForm'
-import TransferForm         from './TransferForm'
-import TransactionList      from './TransactionList'
-import AccountBalances      from './AccountBalances'
-import BudgetManager        from './BudgetManager'
-import AccountsManager      from './AccountsManager'
+import ExpenseForm from './ExpenseForm'
+import IncomeForm from './IncomeForm'
+import TransferForm from './TransferForm'
+import TransactionList from './TransactionList'
+import AccountBalances from './AccountBalances'
+import BudgetManager from './BudgetManager'
+import AccountsManager from './AccountsManager'
 import SubcategoriesManager from './SubcategoriesManager'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const NAV_ITEMS = [
-  { id: 'expense',       label: 'Expense',       icon: PlusCircle     },
-  { id: 'income',        label: 'Income',        icon: TrendingUp     },
-  { id: 'savings',       label: 'Savings',       icon: ArrowLeftRight },
-  { id: 'transactions',  label: 'Transactions',  icon: List           },
-  { id: 'balances',      label: 'Balances',      icon: Wallet         },
-  { id: 'budgets',       label: 'Budgets',       icon: BarChart2      },
-  { id: 'accounts',      label: 'Accounts',      icon: Settings       },
-  { id: 'subcategories', label: 'Subcategories', icon: Settings       },
+  { id: 'expense', label: 'Expense', icon: PlusCircle },
+  { id: 'income', label: 'Income', icon: TrendingUp },
+  { id: 'savings', label: 'Savings', icon: ArrowLeftRight },
+  { id: 'transactions', label: 'Transactions', icon: List },
+  { id: 'balances', label: 'Balances', icon: Wallet },
+  { id: 'budgets', label: 'Budgets', icon: BarChart2 },
+  { id: 'accounts', label: 'Accounts', icon: Settings },
+  { id: 'subcategories', label: 'Subcategories', icon: Settings },
 ]
 
-// Bottom nav shows first 4 items; 5th slot is the More button
-const BOTTOM_PRIMARY  = NAV_ITEMS.slice(0, 4)
+const BOTTOM_PRIMARY = NAV_ITEMS.slice(0, 4)
 const BOTTOM_OVERFLOW = NAV_ITEMS.slice(4)
 
 export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMode }) {
-  const [activeTab,    setActiveTab]    = useState('expense')
-  const [bootstrap,    setBootstrap]    = useState(null)
+  const [activeTab, setActiveTab] = useState('expense')
+  const [bootstrap, setBootstrap] = useState(null)
   const [bootstrapErr, setBootstrapErr] = useState('')
-  const [refreshKey,   setRefreshKey]   = useState(0)
-  const [avatarOpen,   setAvatarOpen]   = useState(false)
-  const [moreOpen,     setMoreOpen]     = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [avatarOpen, setAvatarOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   const avatarRef = useRef(null)
-  const moreRef   = useRef(null)
+  const moreRef = useRef(null)
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/bootstrap`, {
@@ -59,11 +58,10 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
       .catch(() => setBootstrapErr('Could not load form options. Is the API running?'))
   }, [token, refreshKey])
 
-  // Close dropdowns when user clicks outside
   useEffect(() => {
     function onOutsideClick(e) {
       if (avatarRef.current && !avatarRef.current.contains(e.target)) setAvatarOpen(false)
-      if (moreRef.current   && !moreRef.current.contains(e.target))   setMoreOpen(false)
+      if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false)
     }
     document.addEventListener('mousedown', onOutsideClick)
     return () => document.removeEventListener('mousedown', onOutsideClick)
@@ -72,7 +70,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
   async function handleLogout() {
     try {
       await fetch(`${API_BASE_URL}/auth/logout`, {
-        method:  'POST',
+        method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       })
     } catch {
@@ -201,14 +199,14 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
           )}
 
           {activeTab === 'balances' && (
-            <section className="form-card">
+            <section className="form-card form-card--wide">
               <h2 className="section-title">Account Balances</h2>
               <AccountBalances token={token} refreshKey={refreshKey} />
             </section>
           )}
 
           {activeTab === 'budgets' && (
-            <section className="form-card">
+            <section className="form-card form-card--wide">
               <h2 className="section-title">Monthly Budgets</h2>
               <BudgetManager
                 token={token}
@@ -220,7 +218,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
           )}
 
           {activeTab === 'accounts' && (
-            <section className="form-card">
+            <section className="form-card form-card--wide">
               <h2 className="section-title">Accounts Settings</h2>
               <AccountsManager
                 token={token}

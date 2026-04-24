@@ -1,30 +1,29 @@
 import { useState } from 'react'
+import { useToast } from './ToastProvider'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export default function EditTransactionModal({ txn, bootstrap, token, onSaved, onClose }) {
+  const { showToast } = useToast()
   const type = txn.type
 
-  const [date, setDate]               = useState(txn.transaction_date)
-  const [amount, setAmount]           = useState(String(txn.amount))
+  const [date, setDate] = useState(txn.transaction_date)
+  const [amount, setAmount] = useState(String(txn.amount))
   const [description, setDescription] = useState(txn.description || '')
 
-  // expense
-  const [accountId, setAccountId]         = useState(String(txn.account_id || ''))
-  const [categoryId, setCategoryId]       = useState(String(txn.category_id || ''))
+  const [accountId, setAccountId] = useState(String(txn.account_id || ''))
+  const [categoryId, setCategoryId] = useState(String(txn.category_id || ''))
   const [subcategoryId, setSubcategoryId] = useState(String(txn.subcategory_id || ''))
-  const [placeId, setPlaceId]             = useState(String(txn.place_id || ''))
+  const [placeId, setPlaceId] = useState(String(txn.place_id || ''))
 
-  // income
   const [sourceId, setSourceId] = useState(String(txn.income_source_id || ''))
 
-  // transfer
-  const [fromId, setFromId]           = useState(String(txn.from_account_id || ''))
-  const [toId, setToId]               = useState(String(txn.to_account_id || ''))
+  const [fromId, setFromId] = useState(String(txn.from_account_id || ''))
+  const [toId, setToId] = useState(String(txn.to_account_id || ''))
   const [transferLabel, setTransferLabel] = useState(txn.transfer_label || '')
 
   const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+  const [error, setError] = useState('')
 
   const subcategories = bootstrap
     ? bootstrap.subcategories.filter(s => s.category_id === Number(categoryId))
@@ -40,7 +39,9 @@ export default function EditTransactionModal({ txn, bootstrap, token, onSaved, o
     setError('')
 
     if (type === 'transfer' && fromId === toId) {
-      setError('Source and destination accounts must be different')
+      const nextError = 'Source and destination accounts must be different'
+      setError(nextError)
+      showToast({ tone: 'warning', message: nextError })
       return
     }
 
@@ -53,17 +54,17 @@ export default function EditTransactionModal({ txn, bootstrap, token, onSaved, o
       }
 
       if (type === 'expense') {
-        body.account_id     = Number(accountId)
-        body.category_id    = Number(categoryId)
+        body.account_id = Number(accountId)
+        body.category_id = Number(categoryId)
         body.subcategory_id = Number(subcategoryId)
-        body.place_id       = placeId ? Number(placeId) : undefined
+        body.place_id = placeId ? Number(placeId) : undefined
       } else if (type === 'income') {
-        body.account_id       = Number(accountId)
+        body.account_id = Number(accountId)
         body.income_source_id = Number(sourceId)
       } else if (type === 'transfer') {
         body.from_account_id = Number(fromId)
-        body.to_account_id   = Number(toId)
-        body.transfer_label  = transferLabel || undefined
+        body.to_account_id = Number(toId)
+        body.transfer_label = transferLabel || undefined
       }
 
       const res = await fetch(`${API_BASE_URL}/transactions/${txn.id}`, {
@@ -76,20 +77,23 @@ export default function EditTransactionModal({ txn, bootstrap, token, onSaved, o
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to save changes')
+        const nextError = data.error || 'Failed to save changes'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
         return
       }
       onSaved(data)
     } catch {
       setError('Could not reach the server')
+      showToast({ tone: 'error', message: 'Could not reach the server' })
     } finally {
       setLoading(false)
     }
   }
 
   const submitDisabled = loading || !date || !amount ||
-    (type === 'expense'  && (!accountId || !categoryId || !subcategoryId)) ||
-    (type === 'income'   && (!accountId || !sourceId)) ||
+    (type === 'expense' && (!accountId || !categoryId || !subcategoryId)) ||
+    (type === 'income' && (!accountId || !sourceId)) ||
     (type === 'transfer' && (!fromId || !toId))
 
   return (
@@ -120,7 +124,6 @@ export default function EditTransactionModal({ txn, bootstrap, token, onSaved, o
             </div>
           </div>
 
-          {/* ----- expense fields ----- */}
           {type === 'expense' && (
             <>
               <div className="form-group">
@@ -156,7 +159,6 @@ export default function EditTransactionModal({ txn, bootstrap, token, onSaved, o
             </>
           )}
 
-          {/* ----- income fields ----- */}
           {type === 'income' && (
             <>
               <div className="form-group">
@@ -176,7 +178,6 @@ export default function EditTransactionModal({ txn, bootstrap, token, onSaved, o
             </>
           )}
 
-          {/* ----- transfer fields ----- */}
           {type === 'transfer' && (
             <>
               <div className="form-row">

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useToast } from './ToastProvider'
+import { getAccountTypeMeta } from './ui'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -23,6 +25,7 @@ function fmt(amount) {
 }
 
 export default function AccountsManager({ token, refreshKey, onChanged }) {
+  const { showToast } = useToast()
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -49,7 +52,9 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
       if (!res.ok) throw new Error(payload.error || 'Failed to load accounts')
       setAccounts(payload.accounts || [])
     } catch (err) {
-      setError(err.message || 'Could not load accounts')
+      const nextError = err.message || 'Could not load accounts'
+      setError(nextError)
+      showToast({ tone: 'error', message: nextError })
     } finally {
       setLoading(false)
     }
@@ -69,6 +74,11 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
     setEditingId(null)
   }
 
+  function clearInlineFeedback() {
+    setError('')
+    setMessage('')
+  }
+
   function startEdit(account) {
     setEditingId(account.id)
     setForm({
@@ -79,15 +89,14 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
       is_active: Boolean(account.is_active),
       sort_order: String(account.sort_order ?? 0),
     })
-    setError('')
-    setMessage('')
+    clearInlineFeedback()
+    showToast({ tone: 'info', message: `Check fields to update for ${account.name}.` })
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setSaving(true)
-    setError('')
-    setMessage('')
+    clearInlineFeedback()
 
     try {
       const payload = {
@@ -113,16 +122,21 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
 
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to save account')
+        const nextError = data.error || 'Failed to save account'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
         return
       }
 
-      setMessage(editingId ? `Updated ${data.name}` : `Created ${data.name}`)
+      const nextMessage = editingId ? `Updated ${data.name}` : `Created ${data.name}`
+      setMessage(nextMessage)
+      showToast({ tone: 'success', message: nextMessage })
       resetForm()
       await loadAccounts()
       onChanged?.()
     } catch {
       setError('Could not reach the server')
+      showToast({ tone: 'error', message: 'Could not reach the server' })
     } finally {
       setSaving(false)
     }
@@ -131,13 +145,14 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
   async function confirmDelete() {
     if (!deleteTarget) return
     if (deletePhrase !== expectedDeletePhrase) {
-      setError('Delete confirmation phrase does not match')
+      const nextError = 'Delete confirmation phrase does not match'
+      setError(nextError)
+      showToast({ tone: 'warning', message: nextError })
       return
     }
 
     setDeleteLoading(true)
-    setError('')
-    setMessage('')
+    clearInlineFeedback()
 
     try {
       const res = await fetch(`${API_BASE_URL}/accounts/${deleteTarget.id}`, {
@@ -147,11 +162,15 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
 
       const payload = res.status === 204 ? null : await res.json()
       if (!res.ok) {
-        setError(payload?.error || 'Failed to delete account')
+        const nextError = payload?.error || 'Failed to delete account'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
         return
       }
 
-      setMessage(`Deleted ${deleteTarget.name}`)
+      const nextMessage = `Deleted ${deleteTarget.name}`
+      setMessage(nextMessage)
+      showToast({ tone: 'success', message: nextMessage })
       setDeleteTarget(null)
       setDeletePhrase('')
       if (editingId === deleteTarget.id) resetForm()
@@ -159,6 +178,7 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
       onChanged?.()
     } catch {
       setError('Could not reach the server')
+      showToast({ tone: 'error', message: 'Could not reach the server' })
     } finally {
       setDeleteLoading(false)
     }
@@ -266,37 +286,43 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
 
         {!loading && accounts.length > 0 && (
           <div className="settings-list">
-            {accounts.map((account) => (
-              <div key={account.id} className="settings-item">
-                <div className="settings-item-main">
-                  <div className="settings-item-title-row">
-                    <div className="settings-item-title">{account.name}</div>
-                    {!account.is_active && <span className="txn-type-badge">inactive</span>}
+            {accounts.map((account) => {
+              const typeMeta = getAccountTypeMeta(account.type)
+
+              return (
+                <div key={account.id} className="settings-item">
+                  <div className="settings-item-main">
+                    <div className="settings-item-title-row">
+                      <div className="settings-item-title">{account.name}</div>
+                      <span className={`account-type-pill ${typeMeta.className}`}>
+                        {typeMeta.label}
+                      </span>
+                      {!account.is_active && <span className="txn-type-badge">inactive</span>}
+                    </div>
+                    <div className="settings-item-meta">
+                      {account.currency} · Opening: {fmt(account.opening_balance)} · Balance: {fmt(account.balance)}
+                    </div>
+                    <div className="settings-item-meta">Sort order: {account.sort_order}</div>
                   </div>
-                  <div className="settings-item-meta">
-                    {account.type} · {account.currency} · Opening: {fmt(account.opening_balance)} · Balance: {fmt(account.balance)}
+                  <div className="txn-actions settings-item-actions">
+                    <button type="button" className="txn-btn-edit" onClick={() => startEdit(account)}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="txn-btn-delete"
+                      onClick={() => {
+                        setDeleteTarget(account)
+                        setDeletePhrase('')
+                        clearInlineFeedback()
+                      }}
+                    >
+                      Delete
+                    </button>
                   </div>
-                  <div className="settings-item-meta">Sort order: {account.sort_order}</div>
                 </div>
-                <div className="txn-actions settings-item-actions">
-                  <button type="button" className="txn-btn-edit" onClick={() => startEdit(account)}>
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="txn-btn-delete"
-                    onClick={() => {
-                      setDeleteTarget(account)
-                      setDeletePhrase('')
-                      setError('')
-                      setMessage('')
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

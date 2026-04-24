@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import EditTransactionModal from './EditTransactionModal'
+import { useToast } from './ToastProvider'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -29,15 +30,15 @@ function txnLabel(t) {
 function txnSub(t) {
   if (t.type === 'expense') {
     const parts = []
-    if (t.account_name)  parts.push(t.account_name)
-    if (t.place_name)    parts.push(t.place_name)
-    if (t.description)   parts.push(t.description)
+    if (t.account_name) parts.push(t.account_name)
+    if (t.place_name) parts.push(t.place_name)
+    if (t.description) parts.push(t.description)
     return parts.join(' · ') || null
   }
   if (t.type === 'income') {
     const parts = []
     if (t.account_name) parts.push(t.account_name)
-    if (t.description)  parts.push(t.description)
+    if (t.description) parts.push(t.description)
     return parts.join(' · ') || null
   }
   if (t.type === 'transfer' && t.description) {
@@ -47,14 +48,15 @@ function txnSub(t) {
 }
 
 export default function TransactionList({ token, bootstrap, refreshKey, onChanged }) {
-  const [month, setMonth]           = useState(currentMonth())
+  const { showToast } = useToast()
+  const [month, setMonth] = useState(currentMonth())
   const [filterType, setFilterType] = useState('')
-  const [data, setData]             = useState(null)
-  const [loading, setLoading]       = useState(true)
-  const [error, setError]           = useState('')
-  const [deleting, setDeleting]     = useState(null)  // id being deleted
-  const [editTxn, setEditTxn]       = useState(null)  // transaction open in modal
-  const [listKey, setListKey]       = useState(0)     // internal refresh trigger
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [deleting, setDeleting] = useState(null)
+  const [editTxn, setEditTxn] = useState(null)
+  const [listKey, setListKey] = useState(0)
 
   function reload() {
     setListKey(k => k + 1)
@@ -70,9 +72,16 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
     fetch(`${API_BASE_URL}/transactions?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(r => r.json())
-      .then(d => setData(d))
-      .catch(() => setError('Could not load transactions'))
+      .then(async (r) => {
+        const payload = await r.json()
+        if (!r.ok) throw new Error(payload.error || 'Could not load transactions')
+        setData(payload)
+      })
+      .catch((err) => {
+        const nextError = err.message || 'Could not load transactions'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
+      })
       .finally(() => setLoading(false))
   }, [token, month, filterType, refreshKey, listKey])
 
@@ -85,20 +94,31 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
         headers: { Authorization: `Bearer ${token}` },
       })
       if (res.ok || res.status === 204) {
+        showToast({ tone: 'success', message: `${txn.type[0].toUpperCase() + txn.type.slice(1)} deleted.` })
         reload()
       } else {
         const d = await res.json().catch(() => ({}))
-        alert(d.error || 'Failed to delete transaction')
+        const nextError = d.error || 'Failed to delete transaction'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
       }
     } catch {
-      alert('Could not reach the server')
+      const nextError = 'Could not reach the server'
+      setError(nextError)
+      showToast({ tone: 'error', message: nextError })
     } finally {
       setDeleting(null)
     }
   }
 
-  function handleEditSaved() {
+  function handleEditOpen(txn) {
+    setEditTxn(txn)
+    showToast({ tone: 'info', message: `Editing ${txn.type}. Update the fields you want to change.` })
+  }
+
+  function handleEditSaved(updatedTxn) {
     setEditTxn(null)
+    showToast({ tone: 'success', message: `${updatedTxn.type[0].toUpperCase() + updatedTxn.type.slice(1)} updated.` })
     reload()
   }
 
@@ -120,7 +140,7 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
       </div>
 
       {loading && <p className="form-loading">Loading…</p>}
-      {error   && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{error}</p>}
 
       {!loading && data && data.transactions.length === 0 && (
         <p className="txn-empty">No transactions for {month}{filterType ? ` (${filterType})` : ''}.</p>
@@ -148,7 +168,7 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
                   <div className="txn-actions">
                     <button
                       className="txn-btn-edit"
-                      onClick={() => setEditTxn(t)}
+                      onClick={() => handleEditOpen(t)}
                       disabled={deleting === t.id}
                       title="Edit"
                     >
