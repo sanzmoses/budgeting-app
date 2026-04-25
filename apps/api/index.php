@@ -165,6 +165,73 @@ if ($method === 'GET' && $path === '/bootstrap') {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: fetch a single transaction row with all joins (returns array or null)
+// ---------------------------------------------------------------------------
+function fetch_transaction(int $id): ?array
+{
+    $sql = '
+        SELECT
+            t.id, t.client_uuid, t.transaction_date, t.type, t.description, t.amount,
+            t.account_id,       a.name   AS account_name,
+            t.category_id,      c.name   AS category_name,
+            t.subcategory_id,   sc.name  AS subcategory_name,
+            t.place_id,         p.name   AS place_name,
+            t.income_source_id, ins.name AS income_source_name,
+            t.from_account_id,  fa.name  AS from_account_name,
+            t.to_account_id,    ta.name  AS to_account_name,
+            t.transfer_label,
+            t.created_by_user_id, u.name AS created_by_name,
+            t.updated_by_user_id,
+            t.created_at, t.updated_at
+        FROM transactions t
+        LEFT JOIN accounts      a   ON a.id   = t.account_id
+        LEFT JOIN categories    c   ON c.id   = t.category_id
+        LEFT JOIN subcategories sc  ON sc.id  = t.subcategory_id
+        LEFT JOIN places        p   ON p.id   = t.place_id
+        LEFT JOIN income_sources ins ON ins.id = t.income_source_id
+        LEFT JOIN accounts      fa  ON fa.id  = t.from_account_id
+        LEFT JOIN accounts      ta  ON ta.id  = t.to_account_id
+        LEFT JOIN users         u   ON u.id   = t.created_by_user_id
+        WHERE t.id = ? AND t.deleted_at IS NULL
+        LIMIT 1
+    ';
+    $stmt = db()->prepare($sql);
+    $stmt->execute([$id]);
+    $r = $stmt->fetch();
+    if (!$r) {
+        return null;
+    }
+    return [
+        'id'                 => (int)$r['id'],
+        'client_uuid'        => $r['client_uuid'],
+        'transaction_date'   => $r['transaction_date'],
+        'type'               => $r['type'],
+        'description'        => $r['description'],
+        'amount'             => (float)$r['amount'],
+        'account_id'         => $r['account_id']       ? (int)$r['account_id']       : null,
+        'account_name'       => $r['account_name'],
+        'category_id'        => $r['category_id']      ? (int)$r['category_id']      : null,
+        'category_name'      => $r['category_name'],
+        'subcategory_id'     => $r['subcategory_id']   ? (int)$r['subcategory_id']   : null,
+        'subcategory_name'   => $r['subcategory_name'],
+        'place_id'           => $r['place_id']         ? (int)$r['place_id']         : null,
+        'place_name'         => $r['place_name'],
+        'income_source_id'   => $r['income_source_id'] ? (int)$r['income_source_id'] : null,
+        'income_source_name' => $r['income_source_name'],
+        'from_account_id'    => $r['from_account_id']  ? (int)$r['from_account_id']  : null,
+        'from_account_name'  => $r['from_account_name'],
+        'to_account_id'      => $r['to_account_id']    ? (int)$r['to_account_id']    : null,
+        'to_account_name'    => $r['to_account_name'],
+        'transfer_label'     => $r['transfer_label'],
+        'created_by_user_id' => (int)$r['created_by_user_id'],
+        'created_by_name'    => $r['created_by_name'],
+        'updated_by_user_id' => $r['updated_by_user_id'] ? (int)$r['updated_by_user_id'] : null,
+        'created_at'         => $r['created_at'],
+        'updated_at'         => $r['updated_at'],
+    ];
+}
+
+// ---------------------------------------------------------------------------
 // POST /transactions — create expense, income, or transfer (requires auth)
 // ---------------------------------------------------------------------------
 if ($method === 'POST' && $path === '/transactions') {
@@ -194,6 +261,25 @@ if ($method === 'POST' && $path === '/transactions') {
     $amount = round((float)$amount, 2);
 
     $description = trim($body['description'] ?? '') ?: null;
+    $client_uuid = trim($body['client_uuid'] ?? '') ?: null;
+
+    if ($client_uuid !== null && !preg_match('/^[0-9a-fA-F-]{36}$/', $client_uuid)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'client_uuid must be a valid UUID']);
+        exit;
+    }
+
+    if ($client_uuid !== null) {
+        $stmt = db()->prepare(
+            'SELECT id FROM transactions WHERE created_by_user_id = ? AND client_uuid = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        $stmt->execute([$user['id'], $client_uuid]);
+        $existing = $stmt->fetch();
+        if ($existing) {
+            echo json_encode(fetch_transaction((int) $existing['id']));
+            exit;
+        }
+    }
 
     $account_id       = null;
     $category_id      = null;
@@ -251,14 +337,14 @@ if ($method === 'POST' && $path === '/transactions') {
 
     $stmt = db()->prepare(
         'INSERT INTO transactions
-           (transaction_date, type, description, amount,
+           (client_uuid, transaction_date, type, description, amount,
             account_id, category_id, subcategory_id, place_id,
             income_source_id, from_account_id, to_account_id, transfer_label,
             created_by_user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
-        $date, $type, $description, $amount,
+        $client_uuid, $date, $type, $description, $amount,
         $account_id, $category_id, $subcategory_id, $place_id,
         $income_source_id, $from_account_id, $to_account_id, $transfer_label,
         $user['id'],
@@ -267,7 +353,101 @@ if ($method === 'POST' && $path === '/transactions') {
     $id = (int) db()->lastInsertId();
 
     http_response_code(201);
-    echo json_encode(['id' => $id, 'message' => 'Transaction created']);
+    echo json_encode(fetch_transaction($id));
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /sync/transactions — incremental transaction pull (requires auth)
+// Query params: ?since=YYYY-MM-DDTHH:MM:SS or ISO-like string
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/sync/transactions') {
+    require_auth();
+
+    $sinceRaw = trim($_GET['since'] ?? '');
+    if ($sinceRaw === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'since is required']);
+        exit;
+    }
+
+    try {
+        $since = (new DateTime($sinceRaw))->format('Y-m-d H:i:s');
+    } catch (Throwable $e) {
+        http_response_code(400);
+        echo json_encode(['error' => 'since must be a valid datetime']);
+        exit;
+    }
+
+    $sql = '
+        SELECT
+            t.id, t.client_uuid, t.transaction_date, t.type, t.description, t.amount,
+            t.account_id,       a.name   AS account_name,
+            t.category_id,      c.name   AS category_name,
+            t.subcategory_id,   sc.name  AS subcategory_name,
+            t.place_id,         p.name   AS place_name,
+            t.income_source_id, ins.name AS income_source_name,
+            t.from_account_id,  fa.name  AS from_account_name,
+            t.to_account_id,    ta.name  AS to_account_name,
+            t.transfer_label,
+            t.created_by_user_id, u.name AS created_by_name,
+            t.updated_by_user_id,
+            t.created_at, t.updated_at, t.deleted_at
+        FROM transactions t
+        LEFT JOIN accounts      a   ON a.id   = t.account_id
+        LEFT JOIN categories    c   ON c.id   = t.category_id
+        LEFT JOIN subcategories sc  ON sc.id  = t.subcategory_id
+        LEFT JOIN places        p   ON p.id   = t.place_id
+        LEFT JOIN income_sources ins ON ins.id = t.income_source_id
+        LEFT JOIN accounts      fa  ON fa.id  = t.from_account_id
+        LEFT JOIN accounts      ta  ON ta.id  = t.to_account_id
+        LEFT JOIN users         u   ON u.id   = t.created_by_user_id
+        WHERE (t.updated_at >= ? OR (t.deleted_at IS NOT NULL AND t.deleted_at >= ?))
+        ORDER BY t.updated_at ASC, t.id ASC
+    ';
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute([$since, $since]);
+    $rows = $stmt->fetchAll();
+
+    $transactions = array_map(function ($r) {
+        return [
+            'id'                 => (int)$r['id'],
+            'client_uuid'        => $r['client_uuid'],
+            'transaction_date'   => $r['transaction_date'],
+            'type'               => $r['type'],
+            'description'        => $r['description'],
+            'amount'             => $r['amount'] !== null ? (float)$r['amount'] : null,
+            'account_id'         => $r['account_id']       ? (int)$r['account_id']       : null,
+            'account_name'       => $r['account_name'],
+            'category_id'        => $r['category_id']      ? (int)$r['category_id']      : null,
+            'category_name'      => $r['category_name'],
+            'subcategory_id'     => $r['subcategory_id']   ? (int)$r['subcategory_id']   : null,
+            'subcategory_name'   => $r['subcategory_name'],
+            'place_id'           => $r['place_id']         ? (int)$r['place_id']         : null,
+            'place_name'         => $r['place_name'],
+            'income_source_id'   => $r['income_source_id'] ? (int)$r['income_source_id'] : null,
+            'income_source_name' => $r['income_source_name'],
+            'from_account_id'    => $r['from_account_id']  ? (int)$r['from_account_id']  : null,
+            'from_account_name'  => $r['from_account_name'],
+            'to_account_id'      => $r['to_account_id']    ? (int)$r['to_account_id']    : null,
+            'to_account_name'    => $r['to_account_name'],
+            'transfer_label'     => $r['transfer_label'],
+            'created_by_user_id' => (int)$r['created_by_user_id'],
+            'created_by_name'    => $r['created_by_name'],
+            'updated_by_user_id' => $r['updated_by_user_id'] ? (int)$r['updated_by_user_id'] : null,
+            'created_at'         => $r['created_at'],
+            'updated_at'         => $r['updated_at'],
+            'deleted_at'         => $r['deleted_at'],
+        ];
+    }, $rows);
+
+    echo json_encode([
+        'since' => $sinceRaw,
+        'server_time' => date('c'),
+        'count' => count($transactions),
+        'transactions' => $transactions,
+    ]);
     exit;
 }
 
@@ -291,7 +471,7 @@ if ($method === 'GET' && $path === '/transactions') {
 
     $sql = '
         SELECT
-            t.id, t.transaction_date, t.type, t.description, t.amount,
+            t.id, t.client_uuid, t.transaction_date, t.type, t.description, t.amount,
             t.account_id,       a.name   AS account_name,
             t.category_id,      c.name   AS category_name,
             t.subcategory_id,   sc.name  AS subcategory_name,
@@ -331,6 +511,7 @@ if ($method === 'GET' && $path === '/transactions') {
     $transactions = array_map(function ($r) {
         return [
             'id'                 => (int)$r['id'],
+            'client_uuid'        => $r['client_uuid'],
             'transaction_date'   => $r['transaction_date'],
             'type'               => $r['type'],
             'description'        => $r['description'],
@@ -362,72 +543,6 @@ if ($method === 'GET' && $path === '/transactions') {
         'transactions' => $transactions,
     ]);
     exit;
-}
-
-// ---------------------------------------------------------------------------
-// Helper: fetch a single transaction row with all joins (returns array or null)
-// ---------------------------------------------------------------------------
-function fetch_transaction(int $id): ?array
-{
-    $sql = '
-        SELECT
-            t.id, t.transaction_date, t.type, t.description, t.amount,
-            t.account_id,       a.name   AS account_name,
-            t.category_id,      c.name   AS category_name,
-            t.subcategory_id,   sc.name  AS subcategory_name,
-            t.place_id,         p.name   AS place_name,
-            t.income_source_id, ins.name AS income_source_name,
-            t.from_account_id,  fa.name  AS from_account_name,
-            t.to_account_id,    ta.name  AS to_account_name,
-            t.transfer_label,
-            t.created_by_user_id, u.name AS created_by_name,
-            t.updated_by_user_id,
-            t.created_at, t.updated_at
-        FROM transactions t
-        LEFT JOIN accounts      a   ON a.id   = t.account_id
-        LEFT JOIN categories    c   ON c.id   = t.category_id
-        LEFT JOIN subcategories sc  ON sc.id  = t.subcategory_id
-        LEFT JOIN places        p   ON p.id   = t.place_id
-        LEFT JOIN income_sources ins ON ins.id = t.income_source_id
-        LEFT JOIN accounts      fa  ON fa.id  = t.from_account_id
-        LEFT JOIN accounts      ta  ON ta.id  = t.to_account_id
-        LEFT JOIN users         u   ON u.id   = t.created_by_user_id
-        WHERE t.id = ? AND t.deleted_at IS NULL
-        LIMIT 1
-    ';
-    $stmt = db()->prepare($sql);
-    $stmt->execute([$id]);
-    $r = $stmt->fetch();
-    if (!$r) {
-        return null;
-    }
-    return [
-        'id'                 => (int)$r['id'],
-        'transaction_date'   => $r['transaction_date'],
-        'type'               => $r['type'],
-        'description'        => $r['description'],
-        'amount'             => (float)$r['amount'],
-        'account_id'         => $r['account_id']       ? (int)$r['account_id']       : null,
-        'account_name'       => $r['account_name'],
-        'category_id'        => $r['category_id']      ? (int)$r['category_id']      : null,
-        'category_name'      => $r['category_name'],
-        'subcategory_id'     => $r['subcategory_id']   ? (int)$r['subcategory_id']   : null,
-        'subcategory_name'   => $r['subcategory_name'],
-        'place_id'           => $r['place_id']         ? (int)$r['place_id']         : null,
-        'place_name'         => $r['place_name'],
-        'income_source_id'   => $r['income_source_id'] ? (int)$r['income_source_id'] : null,
-        'income_source_name' => $r['income_source_name'],
-        'from_account_id'    => $r['from_account_id']  ? (int)$r['from_account_id']  : null,
-        'from_account_name'  => $r['from_account_name'],
-        'to_account_id'      => $r['to_account_id']    ? (int)$r['to_account_id']    : null,
-        'to_account_name'    => $r['to_account_name'],
-        'transfer_label'     => $r['transfer_label'],
-        'created_by_user_id' => (int)$r['created_by_user_id'],
-        'created_by_name'    => $r['created_by_name'],
-        'updated_by_user_id' => $r['updated_by_user_id'] ? (int)$r['updated_by_user_id'] : null,
-        'created_at'         => $r['created_at'],
-        'updated_at'         => $r['updated_at'],
-    ];
 }
 
 // ---------------------------------------------------------------------------
@@ -521,667 +636,25 @@ function normalize_report_period(): array
         exit;
     }
 
-    $start = $month . '-01';
-
     return [
         'period' => 'monthly',
         'date' => null,
         'month' => $month,
-        'start' => $start,
-        'end' => date('Y-m-t', strtotime($start)),
+        'start' => $month . '-01',
+        'end' => date('Y-m-t', strtotime($month . '-01')),
     ];
 }
 
-function report_summary_payload(array $range): array
-{
-    $stmt = db()->prepare(
-        'SELECT
-            COALESCE(SUM(CASE WHEN type = "income" THEN amount ELSE 0 END), 0) AS income_total,
-            COALESCE(SUM(CASE WHEN type = "expense" THEN amount ELSE 0 END), 0) AS expense_total,
-            COALESCE(SUM(CASE WHEN type = "transfer" THEN amount ELSE 0 END), 0) AS savings_total
-         FROM transactions
-         WHERE deleted_at IS NULL
-           AND transaction_date >= ?
-           AND transaction_date <= ?'
-    );
-    $stmt->execute([$range['start'], $range['end']]);
-    $totals = $stmt->fetch() ?: [];
-
-    $income = round((float) ($totals['income_total'] ?? 0), 2);
-    $expense = round((float) ($totals['expense_total'] ?? 0), 2);
-    $savings = round((float) ($totals['savings_total'] ?? 0), 2);
-
-    return [
-        'period' => $range['period'],
-        'date' => $range['date'],
-        'month' => $range['month'],
-        'range_start' => $range['start'],
-        'range_end' => $range['end'],
-        'income_total' => $income,
-        'expense_total' => $expense,
-        'savings_total' => $savings,
-        'net_total' => round($income - $expense, 2),
-    ];
-}
-
-function report_expenses_by_category_payload(array $range): array
-{
-    $stmt = db()->prepare(
-        'SELECT
-            c.id AS category_id,
-            c.name AS category_name,
-            COALESCE(SUM(t.amount), 0) AS amount
-         FROM transactions t
-         JOIN categories c ON c.id = t.category_id
-         WHERE t.deleted_at IS NULL
-           AND t.type = "expense"
-           AND t.transaction_date >= ?
-           AND t.transaction_date <= ?
-         GROUP BY c.id, c.name
-         ORDER BY amount DESC, c.name ASC'
-    );
-    $stmt->execute([$range['start'], $range['end']]);
-    $rows = $stmt->fetchAll();
-
-    $expenseTotal = array_reduce($rows, function ($sum, $row) {
-        return $sum + (float) $row['amount'];
-    }, 0.0);
-
-    $categories = array_map(function ($row) use ($expenseTotal) {
-        $amount = round((float) $row['amount'], 2);
-        $percentage = $expenseTotal > 0 ? round(($amount / $expenseTotal) * 100, 2) : 0.0;
-
-        return [
-            'category_id' => (int) $row['category_id'],
-            'category_name' => $row['category_name'],
-            'amount' => $amount,
-            'percentage' => $percentage,
-        ];
-    }, $rows);
-
-    return [
-        'period' => $range['period'],
-        'date' => $range['date'],
-        'month' => $range['month'],
-        'range_start' => $range['start'],
-        'range_end' => $range['end'],
-        'expense_total' => round($expenseTotal, 2),
-        'count' => count($categories),
-        'categories' => $categories,
-    ];
-}
-
-function subcategory_payload(array $row): array
+function report_filters_sql(array $period): array
 {
     return [
-        'id' => (int) $row['id'],
-        'category_id' => (int) $row['category_id'],
-        'category_name' => $row['category_name'] ?? null,
-        'name' => $row['name'],
-        'is_active' => (bool) $row['is_active'],
-        'sort_order' => (int) $row['sort_order'],
-    ];
-}
-
-function monthly_budget_summary(string $month, int $categoryId): array
-{
-    $budgetMonth = normalize_budget_month($month);
-    if ($budgetMonth === null) {
-        http_response_code(400);
-        echo json_encode(['error' => 'month must be YYYY-MM or YYYY-MM-DD']);
-        exit;
-    }
-
-    $stmt = db()->prepare('SELECT id, name FROM categories WHERE id = ? LIMIT 1');
-    $stmt->execute([$categoryId]);
-    $category = $stmt->fetch();
-    if (!$category) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Category not found']);
-        exit;
-    }
-
-    $stmt = db()->prepare(
-        'SELECT id, amount
-         FROM monthly_budgets
-         WHERE budget_month = ? AND category_id = ?
-         LIMIT 1'
-    );
-    $stmt->execute([$budgetMonth, $categoryId]);
-    $budget = $stmt->fetch();
-
-    $monthStart = $budgetMonth;
-    $monthEnd = date('Y-m-t', strtotime($budgetMonth));
-
-    $stmt = db()->prepare(
-        'SELECT COALESCE(SUM(amount), 0) AS spent
-         FROM transactions
-         WHERE deleted_at IS NULL
-           AND type = "expense"
-           AND category_id = ?
-           AND transaction_date >= ?
-           AND transaction_date <= ?'
-    );
-    $stmt->execute([$categoryId, $monthStart, $monthEnd]);
-    $spent = (float) ($stmt->fetch()['spent'] ?? 0);
-
-    $budgetAmount = $budget ? (float) $budget['amount'] : 0.0;
-
-    return [
-        'month'            => substr($budgetMonth, 0, 7),
-        'budget_month'     => $budgetMonth,
-        'category_id'      => (int) $category['id'],
-        'category_name'    => $category['name'],
-        'budget_id'        => $budget ? (int) $budget['id'] : null,
-        'budget_amount'    => round($budgetAmount, 2),
-        'spent_amount'     => round($spent, 2),
-        'remaining_amount' => round($budgetAmount - $spent, 2),
-        'has_budget'       => $budget ? true : false,
+        'where' => 't.deleted_at IS NULL AND t.transaction_date >= ? AND t.transaction_date <= ?',
+        'params' => [$period['start'], $period['end']],
     ];
 }
 
 // ---------------------------------------------------------------------------
-// GET /accounts — list accounts with computed balances
-// ---------------------------------------------------------------------------
-if ($method === 'GET' && $path === '/accounts') {
-    require_auth();
-
-    $rows = db()->query(
-        'SELECT id, name, type, opening_balance, currency, is_active, sort_order
-         FROM accounts
-         ORDER BY sort_order, name'
-    )->fetchAll();
-
-    $accounts = array_map(function ($row) {
-        $balance = compute_account_balance((int) $row['id']);
-        return [
-            'id' => (int) $row['id'],
-            'name' => $row['name'],
-            'type' => $row['type'],
-            'opening_balance' => (float) $row['opening_balance'],
-            'currency' => $row['currency'],
-            'is_active' => (bool) $row['is_active'],
-            'sort_order' => (int) $row['sort_order'],
-            'balance' => $balance ? (float) $balance['balance'] : 0.0,
-        ];
-    }, $rows);
-
-    echo json_encode(['accounts' => $accounts]);
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// POST /accounts — create account
-// ---------------------------------------------------------------------------
-if ($method === 'POST' && $path === '/accounts') {
-    require_auth();
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-
-    $name = trim($body['name'] ?? '');
-    $type = trim($body['type'] ?? 'checking');
-    $openingBalance = $body['opening_balance'] ?? 0;
-    $currency = strtoupper(trim($body['currency'] ?? 'PHP'));
-    $isActive = array_key_exists('is_active', $body) ? (int) !!$body['is_active'] : 1;
-    $sortOrder = (int) ($body['sort_order'] ?? 0);
-
-    if ($name === '') {
-        http_response_code(400);
-        echo json_encode(['error' => 'name is required']);
-        exit;
-    }
-    if (!is_numeric($openingBalance)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'opening_balance must be numeric']);
-        exit;
-    }
-    if (!preg_match('/^[A-Z]{3}$/', $currency)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'currency must be a 3-letter code']);
-        exit;
-    }
-
-    db()->prepare(
-        'INSERT INTO accounts (name, type, opening_balance, currency, is_active, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?)'
-    )->execute([$name, $type, round((float) $openingBalance, 2), $currency, $isActive, $sortOrder]);
-
-    $id = (int) db()->lastInsertId();
-    $account = compute_account_balance($id);
-    echo json_encode([
-        'id' => $id,
-        'name' => $name,
-        'type' => $type,
-        'opening_balance' => round((float) $openingBalance, 2),
-        'currency' => $currency,
-        'is_active' => (bool) $isActive,
-        'sort_order' => $sortOrder,
-        'balance' => $account ? (float) $account['balance'] : round((float) $openingBalance, 2),
-    ]);
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// PUT /accounts/{id} — update account
-// ---------------------------------------------------------------------------
-if ($method === 'PUT' && preg_match('#^/accounts/(\d+)$#', $path, $m)) {
-    require_auth();
-    $id = (int) $m[1];
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-
-    $stmt = db()->prepare('SELECT id FROM accounts WHERE id = ? LIMIT 1');
-    $stmt->execute([$id]);
-    if (!$stmt->fetch()) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Account not found']);
-        exit;
-    }
-
-    $name = trim($body['name'] ?? '');
-    $type = trim($body['type'] ?? 'checking');
-    $openingBalance = $body['opening_balance'] ?? 0;
-    $currency = strtoupper(trim($body['currency'] ?? 'PHP'));
-    $isActive = array_key_exists('is_active', $body) ? (int) !!$body['is_active'] : 1;
-    $sortOrder = (int) ($body['sort_order'] ?? 0);
-
-    if ($name === '') {
-        http_response_code(400);
-        echo json_encode(['error' => 'name is required']);
-        exit;
-    }
-    if (!is_numeric($openingBalance)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'opening_balance must be numeric']);
-        exit;
-    }
-    if (!preg_match('/^[A-Z]{3}$/', $currency)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'currency must be a 3-letter code']);
-        exit;
-    }
-
-    db()->prepare(
-        'UPDATE accounts
-         SET name = ?, type = ?, opening_balance = ?, currency = ?, is_active = ?, sort_order = ?
-         WHERE id = ?'
-    )->execute([$name, $type, round((float) $openingBalance, 2), $currency, $isActive, $sortOrder, $id]);
-
-    $account = compute_account_balance($id);
-    echo json_encode([
-        'id' => $id,
-        'name' => $name,
-        'type' => $type,
-        'opening_balance' => round((float) $openingBalance, 2),
-        'currency' => $currency,
-        'is_active' => (bool) $isActive,
-        'sort_order' => $sortOrder,
-        'balance' => $account ? (float) $account['balance'] : round((float) $openingBalance, 2),
-    ]);
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// DELETE /accounts/{id} — hard delete account and all related transactions
-// ---------------------------------------------------------------------------
-if ($method === 'DELETE' && preg_match('#^/accounts/(\d+)$#', $path, $m)) {
-    require_auth();
-    $id = (int) $m[1];
-
-    $stmt = db()->prepare('SELECT id FROM accounts WHERE id = ? LIMIT 1');
-    $stmt->execute([$id]);
-    if (!$stmt->fetch()) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Account not found']);
-        exit;
-    }
-
-    $pdo = db();
-    $pdo->beginTransaction();
-    try {
-        $pdo->prepare(
-            'DELETE FROM transactions
-             WHERE account_id = ? OR from_account_id = ? OR to_account_id = ?'
-        )->execute([$id, $id, $id]);
-
-        $pdo->prepare('DELETE FROM accounts WHERE id = ?')->execute([$id]);
-        $pdo->commit();
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        http_response_code(500);
-        echo json_encode(['error' => 'Failed to delete account']);
-        exit;
-    }
-
-    http_response_code(204);
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// GET /accounts/balances — computed balances for all active accounts
-// ---------------------------------------------------------------------------
-if ($method === 'GET' && $path === '/accounts/balances') {
-    require_auth();
-
-    $stmt = db()->query(
-        'SELECT id FROM accounts WHERE is_active = 1 ORDER BY sort_order, name'
-    );
-    $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-    $balances = array_map('compute_account_balance', $ids);
-
-    echo json_encode(['balances' => $balances]);
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// GET /reports/summary?period=daily&date=YYYY-MM-DD or ?period=monthly&month=YYYY-MM
-// ---------------------------------------------------------------------------
-if ($method === 'GET' && $path === '/reports/summary') {
-    require_auth();
-    echo json_encode(report_summary_payload(normalize_report_period()));
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// GET /reports/expenses-by-category?period=daily&date=YYYY-MM-DD or ?period=monthly&month=YYYY-MM
-// ---------------------------------------------------------------------------
-if ($method === 'GET' && $path === '/reports/expenses-by-category') {
-    require_auth();
-    echo json_encode(report_expenses_by_category_payload(normalize_report_period()));
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// GET /budgets?month=YYYY-MM — list monthly budgets with spent/remaining
-// ---------------------------------------------------------------------------
-if ($method === 'GET' && $path === '/budgets') {
-    require_auth();
-
-    $budgetMonth = normalize_budget_month($_GET['month'] ?? date('Y-m'));
-    if ($budgetMonth === null) {
-        http_response_code(400);
-        echo json_encode(['error' => 'month must be YYYY-MM']);
-        exit;
-    }
-
-    $stmt = db()->prepare(
-        'SELECT
-            mb.id,
-            mb.budget_month,
-            mb.category_id,
-            c.name AS category_name,
-            mb.amount,
-            COALESCE(SUM(t.amount), 0) AS spent_amount
-         FROM monthly_budgets mb
-         JOIN categories c ON c.id = mb.category_id
-         LEFT JOIN transactions t
-           ON t.category_id = mb.category_id
-          AND t.type = "expense"
-          AND t.deleted_at IS NULL
-          AND t.transaction_date >= mb.budget_month
-          AND t.transaction_date <= LAST_DAY(mb.budget_month)
-         WHERE mb.budget_month = ?
-         GROUP BY mb.id, mb.budget_month, mb.category_id, c.name, mb.amount
-         ORDER BY c.sort_order, c.name'
-    );
-    $stmt->execute([$budgetMonth]);
-    $rows = $stmt->fetchAll();
-
-    $budgets = array_map(function ($row) {
-        $amount = (float) $row['amount'];
-        $spent = (float) $row['spent_amount'];
-        return [
-            'id'               => (int) $row['id'],
-            'budget_month'     => $row['budget_month'],
-            'month'            => substr($row['budget_month'], 0, 7),
-            'category_id'      => (int) $row['category_id'],
-            'category_name'    => $row['category_name'],
-            'amount'           => round($amount, 2),
-            'spent_amount'     => round($spent, 2),
-            'remaining_amount' => round($amount - $spent, 2),
-        ];
-    }, $rows);
-
-    echo json_encode([
-        'month' => substr($budgetMonth, 0, 7),
-        'count' => count($budgets),
-        'budgets' => $budgets,
-    ]);
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// GET /budgets/summary?month=YYYY-MM&category_id=ID
-// ---------------------------------------------------------------------------
-if ($method === 'GET' && $path === '/budgets/summary') {
-    require_auth();
-
-    $categoryId = (int) ($_GET['category_id'] ?? 0);
-    if ($categoryId <= 0) {
-        http_response_code(400);
-        echo json_encode(['error' => 'category_id is required']);
-        exit;
-    }
-
-    echo json_encode(monthly_budget_summary($_GET['month'] ?? date('Y-m'), $categoryId));
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// POST /budgets — create or upsert a monthly budget for one category
-// ---------------------------------------------------------------------------
-if ($method === 'POST' && $path === '/budgets') {
-    $user = require_auth();
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-
-    $budgetMonth = normalize_budget_month($body['month'] ?? '');
-    $categoryId = (int) ($body['category_id'] ?? 0);
-    $amount = $body['amount'] ?? null;
-
-    if ($budgetMonth === null) {
-        http_response_code(400);
-        echo json_encode(['error' => 'month is required (YYYY-MM)']);
-        exit;
-    }
-    if ($categoryId <= 0) {
-        http_response_code(400);
-        echo json_encode(['error' => 'category_id is required']);
-        exit;
-    }
-    if ($amount === null || !is_numeric($amount) || (float) $amount < 0) {
-        http_response_code(400);
-        echo json_encode(['error' => 'amount must be 0 or greater']);
-        exit;
-    }
-    $amount = round((float) $amount, 2);
-
-    db()->prepare(
-        'INSERT INTO monthly_budgets (budget_month, category_id, amount, created_by_user_id)
-         VALUES (?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE amount = VALUES(amount)'
-    )->execute([$budgetMonth, $categoryId, $amount, $user['id']]);
-
-    http_response_code(201);
-    echo json_encode(monthly_budget_summary($budgetMonth, $categoryId));
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// PUT /budgets/{id} — update a monthly budget amount
-// ---------------------------------------------------------------------------
-if ($method === 'PUT' && preg_match('#^/budgets/(\d+)$#', $path, $m)) {
-    require_auth();
-    $id = (int) $m[1];
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-
-    $amount = $body['amount'] ?? null;
-    if ($amount === null || !is_numeric($amount) || (float) $amount < 0) {
-        http_response_code(400);
-        echo json_encode(['error' => 'amount must be 0 or greater']);
-        exit;
-    }
-    $amount = round((float) $amount, 2);
-
-    $stmt = db()->prepare('SELECT id, budget_month, category_id FROM monthly_budgets WHERE id = ? LIMIT 1');
-    $stmt->execute([$id]);
-    $budget = $stmt->fetch();
-    if (!$budget) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Budget not found']);
-        exit;
-    }
-
-    db()->prepare('UPDATE monthly_budgets SET amount = ? WHERE id = ?')->execute([$amount, $id]);
-
-    echo json_encode(monthly_budget_summary($budget['budget_month'], (int) $budget['category_id']));
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// GET /subcategories — list all subcategories with category names
-// ---------------------------------------------------------------------------
-if ($method === 'GET' && $path === '/subcategories') {
-    require_auth();
-
-    $rows = db()->query(
-        'SELECT sc.id, sc.category_id, c.name AS category_name, sc.name, sc.is_active, sc.sort_order
-         FROM subcategories sc
-         JOIN categories c ON c.id = sc.category_id
-         ORDER BY c.sort_order, c.name, sc.sort_order, sc.name'
-    )->fetchAll();
-
-    echo json_encode([
-        'subcategories' => array_map('subcategory_payload', $rows),
-    ]);
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// POST /subcategories — create subcategory
-// ---------------------------------------------------------------------------
-if ($method === 'POST' && $path === '/subcategories') {
-    require_auth();
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-
-    $categoryId = (int) ($body['category_id'] ?? 0);
-    $name = trim($body['name'] ?? '');
-    $isActive = array_key_exists('is_active', $body) ? (int) !!$body['is_active'] : 1;
-    $sortOrder = (int) ($body['sort_order'] ?? 0);
-
-    if ($categoryId <= 0) {
-        http_response_code(400);
-        echo json_encode(['error' => 'category_id is required']);
-        exit;
-    }
-    if ($name === '') {
-        http_response_code(400);
-        echo json_encode(['error' => 'name is required']);
-        exit;
-    }
-
-    $stmt = db()->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
-    $stmt->execute([$categoryId]);
-    if (!$stmt->fetch()) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Category not found']);
-        exit;
-    }
-
-    db()->prepare(
-        'INSERT INTO subcategories (category_id, name, is_active, sort_order)
-         VALUES (?, ?, ?, ?)'
-    )->execute([$categoryId, $name, $isActive, $sortOrder]);
-
-    $id = (int) db()->lastInsertId();
-    $stmt = db()->prepare(
-        'SELECT sc.id, sc.category_id, c.name AS category_name, sc.name, sc.is_active, sc.sort_order
-         FROM subcategories sc
-         JOIN categories c ON c.id = sc.category_id
-         WHERE sc.id = ? LIMIT 1'
-    );
-    $stmt->execute([$id]);
-
-    http_response_code(201);
-    echo json_encode(subcategory_payload($stmt->fetch()));
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// PUT /subcategories/{id} — update subcategory
-// ---------------------------------------------------------------------------
-if ($method === 'PUT' && preg_match('#^/subcategories/(\d+)$#', $path, $m)) {
-    require_auth();
-    $id = (int) $m[1];
-    $body = json_decode(file_get_contents('php://input'), true) ?? [];
-
-    $stmt = db()->prepare('SELECT id FROM subcategories WHERE id = ? LIMIT 1');
-    $stmt->execute([$id]);
-    if (!$stmt->fetch()) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Subcategory not found']);
-        exit;
-    }
-
-    $categoryId = (int) ($body['category_id'] ?? 0);
-    $name = trim($body['name'] ?? '');
-    $isActive = array_key_exists('is_active', $body) ? (int) !!$body['is_active'] : 1;
-    $sortOrder = (int) ($body['sort_order'] ?? 0);
-
-    if ($categoryId <= 0) {
-        http_response_code(400);
-        echo json_encode(['error' => 'category_id is required']);
-        exit;
-    }
-    if ($name === '') {
-        http_response_code(400);
-        echo json_encode(['error' => 'name is required']);
-        exit;
-    }
-
-    $stmt = db()->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
-    $stmt->execute([$categoryId]);
-    if (!$stmt->fetch()) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Category not found']);
-        exit;
-    }
-
-    db()->prepare(
-        'UPDATE subcategories
-         SET category_id = ?, name = ?, is_active = ?, sort_order = ?
-         WHERE id = ?'
-    )->execute([$categoryId, $name, $isActive, $sortOrder, $id]);
-
-    $stmt = db()->prepare(
-        'SELECT sc.id, sc.category_id, c.name AS category_name, sc.name, sc.is_active, sc.sort_order
-         FROM subcategories sc
-         JOIN categories c ON c.id = sc.category_id
-         WHERE sc.id = ? LIMIT 1'
-    );
-    $stmt->execute([$id]);
-
-    echo json_encode(subcategory_payload($stmt->fetch()));
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// GET /accounts/{id}/balance — computed balance for one account
-// ---------------------------------------------------------------------------
-if ($method === 'GET' && preg_match('#^/accounts/(\d+)/balance$#', $path, $m)) {
-    require_auth();
-    $result = compute_account_balance((int)$m[1]);
-    if (!$result) {
-        http_response_code(404);
-        echo json_encode(['error' => 'Account not found']);
-        exit;
-    }
-    echo json_encode($result);
-    exit;
-}
-
-// ---------------------------------------------------------------------------
-// GET /transactions/{id} — single transaction detail
+// GET /transactions/{id} — single transaction detail (requires auth)
 // ---------------------------------------------------------------------------
 if ($method === 'GET' && preg_match('#^/transactions/(\d+)$#', $path, $m)) {
     require_auth();
@@ -1196,13 +669,12 @@ if ($method === 'GET' && preg_match('#^/transactions/(\d+)$#', $path, $m)) {
 }
 
 // ---------------------------------------------------------------------------
-// PUT /transactions/{id} — edit a transaction (requires auth)
-// Type cannot be changed; fields are validated per the existing type.
+// PUT /transactions/{id} — edit existing transaction (requires auth)
+// Type is immutable; validate fields by existing type.
 // ---------------------------------------------------------------------------
 if ($method === 'PUT' && preg_match('#^/transactions/(\d+)$#', $path, $m)) {
     $user = require_auth();
     $id   = (int)$m[1];
-
     $existing = fetch_transaction($id);
     if (!$existing) {
         http_response_code(404);
@@ -1211,7 +683,7 @@ if ($method === 'PUT' && preg_match('#^/transactions/(\d+)$#', $path, $m)) {
     }
 
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
-    $type = $existing['type']; // type is immutable
+    $type = $existing['type'];
 
     $date = trim($body['transaction_date'] ?? '');
     if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
@@ -1284,54 +756,834 @@ if ($method === 'PUT' && preg_match('#^/transactions/(\d+)$#', $path, $m)) {
         }
     }
 
-    db()->prepare('
-        UPDATE transactions SET
-            transaction_date  = ?,
-            description       = ?,
-            amount            = ?,
-            account_id        = ?,
-            category_id       = ?,
-            subcategory_id    = ?,
-            place_id          = ?,
-            income_source_id  = ?,
-            from_account_id   = ?,
-            to_account_id     = ?,
-            transfer_label    = ?,
-            updated_by_user_id = ?
-        WHERE id = ?
-    ')->execute([
+    $stmt = db()->prepare(
+        'UPDATE transactions
+            SET transaction_date = ?,
+                description = ?,
+                amount = ?,
+                account_id = ?,
+                category_id = ?,
+                subcategory_id = ?,
+                place_id = ?,
+                income_source_id = ?,
+                from_account_id = ?,
+                to_account_id = ?,
+                transfer_label = ?,
+                updated_by_user_id = ?
+          WHERE id = ? AND deleted_at IS NULL'
+    );
+    $stmt->execute([
         $date, $description, $amount,
         $account_id, $category_id, $subcategory_id, $place_id,
         $income_source_id, $from_account_id, $to_account_id, $transfer_label,
-        $user['id'],
-        $id,
+        $user['id'], $id,
     ]);
 
-    echo json_encode(fetch_transaction($id));
+    $txn = fetch_transaction($id);
+    echo json_encode($txn);
     exit;
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /transactions/{id} — soft delete (requires auth)
+// DELETE /transactions/{id} — soft delete a transaction (requires auth)
 // ---------------------------------------------------------------------------
 if ($method === 'DELETE' && preg_match('#^/transactions/(\d+)$#', $path, $m)) {
     require_auth();
     $id = (int)$m[1];
-
-    $stmt = db()->prepare('SELECT id FROM transactions WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+    $stmt = db()->prepare('UPDATE transactions SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL');
     $stmt->execute([$id]);
-    if (!$stmt->fetch()) {
+
+    if ($stmt->rowCount() === 0) {
         http_response_code(404);
         echo json_encode(['error' => 'Transaction not found']);
         exit;
     }
 
-    db()->prepare('UPDATE transactions SET deleted_at = NOW() WHERE id = ?')->execute([$id]);
-
     http_response_code(204);
     exit;
 }
 
-// 404 fallback
+// ---------------------------------------------------------------------------
+// GET /accounts/balances — all active accounts with computed balances (auth)
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/accounts/balances') {
+    require_auth();
+
+    $accounts = db()->query(
+        'SELECT id FROM accounts WHERE is_active = 1 ORDER BY sort_order, name'
+    )->fetchAll();
+
+    $rows = array_map(function ($r) {
+        return compute_account_balance((int)$r['id']);
+    }, $accounts);
+
+    $rows = array_values(array_filter($rows));
+
+    echo json_encode([
+        'count'    => count($rows),
+        'accounts' => $rows,
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /accounts/{id}/balance — one account balance (auth)
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && preg_match('#^/accounts/(\d+)/balance$#', $path, $m)) {
+    require_auth();
+    $balance = compute_account_balance((int)$m[1]);
+    if (!$balance) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Account not found']);
+        exit;
+    }
+    echo json_encode($balance);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /budgets — list month budgets with spent/remaining (auth)
+// Query: ?month=YYYY-MM
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/budgets') {
+    require_auth();
+
+    $monthStart = normalize_budget_month($_GET['month'] ?? date('Y-m'));
+    if (!$monthStart) {
+        http_response_code(400);
+        echo json_encode(['error' => 'month must be YYYY-MM']);
+        exit;
+    }
+    $monthLabel = substr($monthStart, 0, 7);
+    $monthEnd = date('Y-m-t', strtotime($monthStart));
+
+    $sql = '
+        SELECT
+            c.id AS category_id,
+            c.name AS category_name,
+            mb.id,
+            mb.amount,
+            mb.created_at,
+            mb.updated_at,
+            COALESCE(SUM(t.amount), 0) AS spent_amount
+        FROM categories c
+        LEFT JOIN monthly_budgets mb
+          ON mb.category_id = c.id AND mb.budget_month = ?
+        LEFT JOIN transactions t
+          ON t.type = "expense"
+         AND t.deleted_at IS NULL
+         AND t.category_id = c.id
+         AND t.transaction_date >= ?
+         AND t.transaction_date <= ?
+        WHERE c.is_active = 1
+        GROUP BY c.id, c.name, mb.id, mb.amount, mb.created_at, mb.updated_at
+        ORDER BY c.sort_order, c.name
+    ';
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute([$monthStart, $monthStart, $monthEnd]);
+    $rows = $stmt->fetchAll();
+
+    $budgets = array_map(function ($r) {
+        $amount = $r['amount'] !== null ? (float)$r['amount'] : 0.0;
+        $spent = (float)$r['spent_amount'];
+        return [
+            'id' => $r['id'] ? (int)$r['id'] : null,
+            'budget_month' => substr($GLOBALS['monthStart'] ?? $r['budget_month'] ?? date('Y-m-01'), 0, 7),
+            'category_id' => (int)$r['category_id'],
+            'category_name' => $r['category_name'],
+            'amount' => $amount,
+            'spent_amount' => $spent,
+            'remaining_amount' => round($amount - $spent, 2),
+            'has_budget' => $r['id'] !== null,
+            'created_at' => $r['created_at'],
+            'updated_at' => $r['updated_at'],
+        ];
+    }, $rows);
+
+    echo json_encode([
+        'month' => $monthLabel,
+        'count' => count($budgets),
+        'budgets' => $budgets,
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /budgets/summary — one category summary for a month (auth)
+// Query: ?month=YYYY-MM&category_id={id}
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/budgets/summary') {
+    require_auth();
+
+    $monthStart = normalize_budget_month($_GET['month'] ?? date('Y-m'));
+    $categoryId = intval($_GET['category_id'] ?? 0);
+    if (!$monthStart) {
+        http_response_code(400);
+        echo json_encode(['error' => 'month must be YYYY-MM']);
+        exit;
+    }
+    if (!$categoryId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'category_id is required']);
+        exit;
+    }
+
+    $monthEnd = date('Y-m-t', strtotime($monthStart));
+
+    $stmt = db()->prepare('SELECT id, name FROM categories WHERE id = ? LIMIT 1');
+    $stmt->execute([$categoryId]);
+    $category = $stmt->fetch();
+    if (!$category) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Category not found']);
+        exit;
+    }
+
+    $stmt = db()->prepare(
+        'SELECT id, amount, created_at, updated_at
+         FROM monthly_budgets
+         WHERE budget_month = ? AND category_id = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$monthStart, $categoryId]);
+    $budget = $stmt->fetch();
+
+    $stmt = db()->prepare(
+        'SELECT COALESCE(SUM(amount), 0) AS spent_amount
+         FROM transactions
+         WHERE deleted_at IS NULL
+           AND type = "expense"
+           AND category_id = ?
+           AND transaction_date >= ?
+           AND transaction_date <= ?'
+    );
+    $stmt->execute([$categoryId, $monthStart, $monthEnd]);
+    $spent = (float)($stmt->fetch()['spent_amount'] ?? 0);
+
+    $amount = $budget ? (float)$budget['amount'] : 0.0;
+
+    echo json_encode([
+        'month' => substr($monthStart, 0, 7),
+        'category_id' => (int)$category['id'],
+        'category_name' => $category['name'],
+        'budget_id' => $budget ? (int)$budget['id'] : null,
+        'budget_amount' => $amount,
+        'spent_amount' => $spent,
+        'remaining_amount' => round($amount - $spent, 2),
+        'has_budget' => (bool)$budget,
+        'created_at' => $budget['created_at'] ?? null,
+        'updated_at' => $budget['updated_at'] ?? null,
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// POST /budgets — create or upsert a monthly budget (auth)
+// Body: { month: "YYYY-MM", category_id: 1, amount: 5000 }
+// ---------------------------------------------------------------------------
+if ($method === 'POST' && $path === '/budgets') {
+    $user = require_auth();
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $monthStart = normalize_budget_month($body['month'] ?? '');
+    $categoryId = intval($body['category_id'] ?? 0);
+    $amount = $body['amount'] ?? null;
+
+    if (!$monthStart) {
+        http_response_code(400);
+        echo json_encode(['error' => 'month is required (YYYY-MM)']);
+        exit;
+    }
+    if (!$categoryId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'category_id is required']);
+        exit;
+    }
+    if ($amount === null || !is_numeric($amount) || (float)$amount < 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'amount must be a number greater than or equal to 0']);
+        exit;
+    }
+    $amount = round((float)$amount, 2);
+
+    $stmt = db()->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
+    $stmt->execute([$categoryId]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Category not found']);
+        exit;
+    }
+
+    $stmt = db()->prepare(
+        'INSERT INTO monthly_budgets (budget_month, category_id, amount, created_by_user_id)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE amount = VALUES(amount), updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([$monthStart, $categoryId, $amount, $user['id']]);
+
+    $stmt = db()->prepare(
+        'SELECT id FROM monthly_budgets WHERE budget_month = ? AND category_id = ? LIMIT 1'
+    );
+    $stmt->execute([$monthStart, $categoryId]);
+    $id = (int)$stmt->fetch()['id'];
+
+    http_response_code(201);
+    echo json_encode([
+        'id' => $id,
+        'month' => substr($monthStart, 0, 7),
+        'category_id' => $categoryId,
+        'amount' => $amount,
+        'message' => 'Budget saved',
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// PUT /budgets/{id} — update an existing monthly budget (auth)
+// Body: { amount: 5000 }
+// ---------------------------------------------------------------------------
+if ($method === 'PUT' && preg_match('#^/budgets/(\d+)$#', $path, $m)) {
+    require_auth();
+    $id = (int)$m[1];
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $amount = $body['amount'] ?? null;
+
+    if ($amount === null || !is_numeric($amount) || (float)$amount < 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'amount must be a number greater than or equal to 0']);
+        exit;
+    }
+    $amount = round((float)$amount, 2);
+
+    $stmt = db()->prepare(
+        'UPDATE monthly_budgets SET amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    );
+    $stmt->execute([$amount, $id]);
+
+    if ($stmt->rowCount() === 0) {
+        $stmt = db()->prepare('SELECT id FROM monthly_budgets WHERE id = ? LIMIT 1');
+        $stmt->execute([$id]);
+        if (!$stmt->fetch()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Budget not found']);
+            exit;
+        }
+    }
+
+    echo json_encode([
+        'id' => $id,
+        'amount' => $amount,
+        'message' => 'Budget updated',
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /reports/summary — totals for a day or month (auth)
+// Query daily:   ?period=daily&date=YYYY-MM-DD
+// Query monthly: ?period=monthly&month=YYYY-MM
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/reports/summary') {
+    require_auth();
+    $period = normalize_report_period();
+    $filters = report_filters_sql($period);
+
+    $stmt = db()->prepare(
+        "SELECT
+            COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) AS income_total,
+            COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) AS expense_total,
+            COALESCE(SUM(CASE WHEN t.type = 'transfer' THEN t.amount ELSE 0 END), 0) AS transfer_total
+         FROM transactions t
+         WHERE {$filters['where']}"
+    );
+    $stmt->execute($filters['params']);
+    $row = $stmt->fetch();
+
+    echo json_encode([
+        'period' => $period['period'],
+        'date' => $period['date'],
+        'month' => $period['month'],
+        'start' => $period['start'],
+        'end' => $period['end'],
+        'income_total' => (float) $row['income_total'],
+        'expense_total' => (float) $row['expense_total'],
+        'transfer_total' => (float) $row['transfer_total'],
+        'net_total' => round((float) $row['income_total'] - (float) $row['expense_total'], 2),
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /reports/category-breakdown — expense totals by category/subcategory (auth)
+// Query daily:   ?period=daily&date=YYYY-MM-DD
+// Query monthly: ?period=monthly&month=YYYY-MM
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/reports/category-breakdown') {
+    require_auth();
+    $period = normalize_report_period();
+    $filters = report_filters_sql($period);
+
+    $stmt = db()->prepare(
+        "SELECT
+            c.id AS category_id,
+            c.name AS category_name,
+            sc.id AS subcategory_id,
+            sc.name AS subcategory_name,
+            SUM(t.amount) AS total_amount
+         FROM transactions t
+         LEFT JOIN categories c ON c.id = t.category_id
+         LEFT JOIN subcategories sc ON sc.id = t.subcategory_id
+         WHERE {$filters['where']}
+           AND t.type = 'expense'
+         GROUP BY c.id, c.name, sc.id, sc.name
+         ORDER BY total_amount DESC, category_name ASC, subcategory_name ASC"
+    );
+    $stmt->execute($filters['params']);
+    $rows = $stmt->fetchAll();
+
+    $breakdown = array_map(function ($row) {
+        return [
+            'category_id' => $row['category_id'] ? (int) $row['category_id'] : null,
+            'category_name' => $row['category_name'] ?: 'Uncategorized',
+            'subcategory_id' => $row['subcategory_id'] ? (int) $row['subcategory_id'] : null,
+            'subcategory_name' => $row['subcategory_name'],
+            'total_amount' => (float) $row['total_amount'],
+        ];
+    }, $rows);
+
+    echo json_encode([
+        'period' => $period['period'],
+        'date' => $period['date'],
+        'month' => $period['month'],
+        'start' => $period['start'],
+        'end' => $period['end'],
+        'count' => count($breakdown),
+        'breakdown' => $breakdown,
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /reports/timeseries — per-day income/expense/transfer totals for a month
+// Query: ?month=YYYY-MM
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/reports/timeseries') {
+    require_auth();
+
+    $month = $_GET['month'] ?? date('Y-m');
+    if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'month must be YYYY-MM']);
+        exit;
+    }
+
+    $start = $month . '-01';
+    $end = date('Y-m-t', strtotime($start));
+
+    $stmt = db()->prepare(
+        "SELECT
+            t.transaction_date,
+            COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) AS income_total,
+            COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) AS expense_total,
+            COALESCE(SUM(CASE WHEN t.type = 'transfer' THEN t.amount ELSE 0 END), 0) AS transfer_total
+         FROM transactions t
+         WHERE t.deleted_at IS NULL
+           AND t.transaction_date >= ?
+           AND t.transaction_date <= ?
+         GROUP BY t.transaction_date
+         ORDER BY t.transaction_date ASC"
+    );
+    $stmt->execute([$start, $end]);
+    $rows = $stmt->fetchAll();
+
+    $series = array_map(function ($row) {
+        return [
+            'date' => $row['transaction_date'],
+            'income_total' => (float) $row['income_total'],
+            'expense_total' => (float) $row['expense_total'],
+            'transfer_total' => (float) $row['transfer_total'],
+        ];
+    }, $rows);
+
+    echo json_encode([
+        'month' => $month,
+        'start' => $start,
+        'end' => $end,
+        'count' => count($series),
+        'series' => $series,
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /accounts — list accounts (auth)
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/accounts') {
+    require_auth();
+
+    $includeInactive = ($_GET['include_inactive'] ?? '0') === '1';
+    $sql = 'SELECT id, name, type, opening_balance, currency, is_active, sort_order, created_at
+            FROM accounts';
+    if (!$includeInactive) {
+        $sql .= ' WHERE is_active = 1';
+    }
+    $sql .= ' ORDER BY sort_order, name';
+
+    $rows = db()->query($sql)->fetchAll();
+    $accounts = array_map(function ($row) {
+        return [
+            'id' => (int) $row['id'],
+            'name' => $row['name'],
+            'type' => $row['type'],
+            'opening_balance' => (float) $row['opening_balance'],
+            'currency' => $row['currency'],
+            'is_active' => (int) $row['is_active'] === 1,
+            'sort_order' => (int) $row['sort_order'],
+            'created_at' => $row['created_at'],
+        ];
+    }, $rows);
+
+    echo json_encode([
+        'count' => count($accounts),
+        'accounts' => $accounts,
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// POST /accounts — create account (auth)
+// Body: { name, type?, opening_balance?, currency?, is_active?, sort_order? }
+// ---------------------------------------------------------------------------
+if ($method === 'POST' && $path === '/accounts') {
+    require_auth();
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $name = trim($body['name'] ?? '');
+    $type = trim($body['type'] ?? 'checking');
+    $openingBalance = $body['opening_balance'] ?? 0;
+    $currency = strtoupper(trim($body['currency'] ?? 'PHP'));
+    $isActive = array_key_exists('is_active', $body) ? ((int) !!$body['is_active']) : 1;
+    $sortOrder = isset($body['sort_order']) && is_numeric($body['sort_order']) ? (int) $body['sort_order'] : 0;
+
+    $validTypes = ['checking', 'savings', 'cash', 'credit'];
+
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'name is required']);
+        exit;
+    }
+    if (!in_array($type, $validTypes, true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'type must be checking, savings, cash, or credit']);
+        exit;
+    }
+    if (!is_numeric($openingBalance)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'opening_balance must be numeric']);
+        exit;
+    }
+    $openingBalance = round((float) $openingBalance, 2);
+    if (!preg_match('/^[A-Z]{3}$/', $currency)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'currency must be a 3-letter code']);
+        exit;
+    }
+
+    $stmt = db()->prepare(
+        'INSERT INTO accounts (name, type, opening_balance, currency, is_active, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)'
+    );
+    $stmt->execute([$name, $type, $openingBalance, $currency, $isActive, $sortOrder]);
+
+    $id = (int) db()->lastInsertId();
+    echo json_encode([
+        'id' => $id,
+        'name' => $name,
+        'type' => $type,
+        'opening_balance' => $openingBalance,
+        'currency' => $currency,
+        'is_active' => $isActive === 1,
+        'sort_order' => $sortOrder,
+        'message' => 'Account created',
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// PUT /accounts/{id} — update account (auth)
+// ---------------------------------------------------------------------------
+if ($method === 'PUT' && preg_match('#^/accounts/(\d+)$#', $path, $m)) {
+    require_auth();
+    $id = (int) $m[1];
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $stmt = db()->prepare('SELECT id FROM accounts WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Account not found']);
+        exit;
+    }
+
+    $name = trim($body['name'] ?? '');
+    $type = trim($body['type'] ?? 'checking');
+    $openingBalance = $body['opening_balance'] ?? 0;
+    $currency = strtoupper(trim($body['currency'] ?? 'PHP'));
+    $isActive = array_key_exists('is_active', $body) ? ((int) !!$body['is_active']) : 1;
+    $sortOrder = isset($body['sort_order']) && is_numeric($body['sort_order']) ? (int) $body['sort_order'] : 0;
+
+    $validTypes = ['checking', 'savings', 'cash', 'credit'];
+
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'name is required']);
+        exit;
+    }
+    if (!in_array($type, $validTypes, true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'type must be checking, savings, cash, or credit']);
+        exit;
+    }
+    if (!is_numeric($openingBalance)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'opening_balance must be numeric']);
+        exit;
+    }
+    $openingBalance = round((float) $openingBalance, 2);
+    if (!preg_match('/^[A-Z]{3}$/', $currency)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'currency must be a 3-letter code']);
+        exit;
+    }
+
+    $stmt = db()->prepare(
+        'UPDATE accounts
+         SET name = ?, type = ?, opening_balance = ?, currency = ?, is_active = ?, sort_order = ?
+         WHERE id = ?'
+    );
+    $stmt->execute([$name, $type, $openingBalance, $currency, $isActive, $sortOrder, $id]);
+
+    echo json_encode([
+        'id' => $id,
+        'name' => $name,
+        'type' => $type,
+        'opening_balance' => $openingBalance,
+        'currency' => $currency,
+        'is_active' => $isActive === 1,
+        'sort_order' => $sortOrder,
+        'message' => 'Account updated',
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /accounts/{id} — guarded delete account + related transactions (auth)
+// Body: { confirmation: "delete Account Name" }
+// ---------------------------------------------------------------------------
+if ($method === 'DELETE' && preg_match('#^/accounts/(\d+)$#', $path, $m)) {
+    require_auth();
+    $id = (int) $m[1];
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $stmt = db()->prepare('SELECT id, name FROM accounts WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    $account = $stmt->fetch();
+    if (!$account) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Account not found']);
+        exit;
+    }
+
+    $expected = 'delete ' . $account['name'];
+    $confirmation = trim($body['confirmation'] ?? '');
+    if ($confirmation !== $expected) {
+        http_response_code(400);
+        echo json_encode([
+            'error' => 'confirmation text does not match',
+            'expected' => $expected,
+        ]);
+        exit;
+    }
+
+    db()->beginTransaction();
+    try {
+        db()->prepare(
+            'DELETE FROM transactions
+             WHERE account_id = ? OR from_account_id = ? OR to_account_id = ?'
+        )->execute([$id, $id, $id]);
+
+        db()->prepare('DELETE FROM accounts WHERE id = ?')->execute([$id]);
+
+        db()->commit();
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $e;
+    }
+
+    echo json_encode([
+        'id' => $id,
+        'message' => 'Account and related transactions deleted',
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /subcategories — list subcategories (auth)
+// Query: ?include_inactive=1 to include inactive rows
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/subcategories') {
+    require_auth();
+
+    $includeInactive = ($_GET['include_inactive'] ?? '0') === '1';
+    $sql = '
+        SELECT
+            sc.id,
+            sc.category_id,
+            c.name AS category_name,
+            sc.name,
+            sc.is_active,
+            sc.sort_order
+        FROM subcategories sc
+        INNER JOIN categories c ON c.id = sc.category_id
+    ';
+    if (!$includeInactive) {
+        $sql .= ' WHERE sc.is_active = 1';
+    }
+    $sql .= ' ORDER BY c.sort_order, c.name, sc.sort_order, sc.name';
+
+    $rows = db()->query($sql)->fetchAll();
+    $items = array_map(function ($row) {
+        return [
+            'id' => (int) $row['id'],
+            'category_id' => (int) $row['category_id'],
+            'category_name' => $row['category_name'],
+            'name' => $row['name'],
+            'is_active' => (int) $row['is_active'] === 1,
+            'sort_order' => (int) $row['sort_order'],
+        ];
+    }, $rows);
+
+    echo json_encode([
+        'count' => count($items),
+        'subcategories' => $items,
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// POST /subcategories — create subcategory (auth)
+// Body: { category_id, name, is_active?, sort_order? }
+// ---------------------------------------------------------------------------
+if ($method === 'POST' && $path === '/subcategories') {
+    require_auth();
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $categoryId = intval($body['category_id'] ?? 0);
+    $name = trim($body['name'] ?? '');
+    $isActive = array_key_exists('is_active', $body) ? ((int) !!$body['is_active']) : 1;
+    $sortOrder = isset($body['sort_order']) && is_numeric($body['sort_order']) ? (int) $body['sort_order'] : 0;
+
+    if (!$categoryId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'category_id is required']);
+        exit;
+    }
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'name is required']);
+        exit;
+    }
+
+    $stmt = db()->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
+    $stmt->execute([$categoryId]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Category not found']);
+        exit;
+    }
+
+    $stmt = db()->prepare(
+        'INSERT INTO subcategories (category_id, name, is_active, sort_order)
+         VALUES (?, ?, ?, ?)'
+    );
+    $stmt->execute([$categoryId, $name, $isActive, $sortOrder]);
+
+    $id = (int) db()->lastInsertId();
+    echo json_encode([
+        'id' => $id,
+        'category_id' => $categoryId,
+        'name' => $name,
+        'is_active' => $isActive === 1,
+        'sort_order' => $sortOrder,
+        'message' => 'Subcategory created',
+    ]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// PUT /subcategories/{id} — update subcategory (auth)
+// ---------------------------------------------------------------------------
+if ($method === 'PUT' && preg_match('#^/subcategories/(\d+)$#', $path, $m)) {
+    require_auth();
+    $id = (int) $m[1];
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    $stmt = db()->prepare('SELECT id FROM subcategories WHERE id = ? LIMIT 1');
+    $stmt->execute([$id]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Subcategory not found']);
+        exit;
+    }
+
+    $categoryId = intval($body['category_id'] ?? 0);
+    $name = trim($body['name'] ?? '');
+    $isActive = array_key_exists('is_active', $body) ? ((int) !!$body['is_active']) : 1;
+    $sortOrder = isset($body['sort_order']) && is_numeric($body['sort_order']) ? (int) $body['sort_order'] : 0;
+
+    if (!$categoryId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'category_id is required']);
+        exit;
+    }
+    if ($name === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'name is required']);
+        exit;
+    }
+
+    $stmt = db()->prepare('SELECT id FROM categories WHERE id = ? LIMIT 1');
+    $stmt->execute([$categoryId]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Category not found']);
+        exit;
+    }
+
+    $stmt = db()->prepare(
+        'UPDATE subcategories
+         SET category_id = ?, name = ?, is_active = ?, sort_order = ?
+         WHERE id = ?'
+    );
+    $stmt->execute([$categoryId, $name, $isActive, $sortOrder, $id]);
+
+    echo json_encode([
+        'id' => $id,
+        'category_id' => $categoryId,
+        'name' => $name,
+        'is_active' => $isActive === 1,
+        'sort_order' => $sortOrder,
+        'message' => 'Subcategory updated',
+    ]);
+    exit;
+}
+
 http_response_code(404);
-echo json_encode(['error' => 'Not found', 'path' => $path]);
+echo json_encode([
+    'error'  => 'Not found',
+    'path'   => $path,
+    'method' => $method,
+]);

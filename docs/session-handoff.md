@@ -30,6 +30,7 @@ Use this file to resume work quickly in a future session.
 - Reports planned next via `docs/reporting-plan.md`
 - Mobile-first reporting required for Phase 7A
 - Offline later
+- Offline/PWA planning reference: `docs/offline-pwa-plan.md`
 
 ## Phase status
 

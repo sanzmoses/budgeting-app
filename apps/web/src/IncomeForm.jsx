@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useToast } from './ToastProvider'
+import { queueOfflineTransactionCreate } from './offlineTransactions'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -54,8 +55,25 @@ export default function IncomeForm({ token, bootstrap, onCreated }) {
       setDescription('')
       onCreated?.()
     } catch {
-      setError('Could not reach the server')
-      showToast({ tone: 'error', message: 'Could not reach the server' })
+      try {
+        await queueOfflineTransactionCreate({
+          type: 'income',
+          transaction_date: date,
+          account_id: Number(accountId),
+          income_source_id: Number(sourceId),
+          amount: parseFloat(amount),
+          description: description || '',
+        })
+        const nextMessage = 'Income saved locally. It will sync when connection returns.'
+        setSuccess(nextMessage)
+        showToast({ tone: 'warning', message: nextMessage })
+        setAmount('')
+        setDescription('')
+        onCreated?.()
+      } catch {
+        setError('Could not reach the server')
+        showToast({ tone: 'error', message: 'Could not reach the server' })
+      }
     } finally {
       setLoading(false)
     }

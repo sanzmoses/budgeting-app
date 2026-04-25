@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useToast } from './ToastProvider'
+import { queueOfflineTransactionCreate } from './offlineTransactions'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -65,8 +66,27 @@ export default function TransferForm({ token, bootstrap, onCreated }) {
       setDescription('')
       onCreated?.()
     } catch {
-      setError('Could not reach the server')
-      showToast({ tone: 'error', message: 'Could not reach the server' })
+      try {
+        await queueOfflineTransactionCreate({
+          type: 'transfer',
+          transaction_date: date,
+          from_account_id: Number(fromId),
+          to_account_id: Number(toId),
+          amount: parseFloat(amount),
+          transfer_label: label || '',
+          description: description || '',
+        })
+        const nextMessage = 'Transfer saved locally. It will sync when connection returns.'
+        setSuccess(nextMessage)
+        showToast({ tone: 'warning', message: nextMessage })
+        setAmount('')
+        setLabel('')
+        setDescription('')
+        onCreated?.()
+      } catch {
+        setError('Could not reach the server')
+        showToast({ tone: 'error', message: 'Could not reach the server' })
+      }
     } finally {
       setLoading(false)
     }

@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { getBootstrapCache, getLastBootstrapSyncAt, saveBootstrapCache } from './offlineDb'
+import { useNetworkStatus } from './useNetworkStatus'
+import { useOfflineSync } from './useOfflineSync'
 import {
   PlusCircle,
   TrendingUp,
@@ -22,6 +25,7 @@ import BudgetManager from './BudgetManager'
 import AccountsManager from './AccountsManager'
 import SubcategoriesManager from './SubcategoriesManager'
 import ReportsPage from './ReportsPage'
+import logoUrl from './assets/logo-budgeting-app.svg'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -44,20 +48,75 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
   const [activeTab, setActiveTab] = useState('expense')
   const [bootstrap, setBootstrap] = useState(null)
   const [bootstrapErr, setBootstrapErr] = useState('')
+  const [bootstrapMeta, setBootstrapMeta] = useState({ source: 'network', syncedAt: null })
   const [refreshKey, setRefreshKey] = useState(0)
   const [avatarOpen, setAvatarOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+
+  const isOnline = useNetworkStatus()
+  const [syncRefreshKey, setSyncRefreshKey] = useState(0)
+  const { pending, syncing, failed } = useOfflineSync({
+    token,
+    enabled: isOnline,
+    refreshKey: syncRefreshKey,
+    onSyncComplete: (result) => {
+      if (result?.synced) {
+        setRefreshKey(k => k + 1)
+      }
+      setSyncRefreshKey(k => k + 1)
+    },
+  })
 
   const avatarRef = useRef(null)
   const moreRef = useRef(null)
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/bootstrap`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(data => setBootstrap(data))
-      .catch(() => setBootstrapErr('Could not load form options. Is the API running?'))
+    let cancelled = false
+
+    async function loadBootstrap() {
+      setBootstrapErr('')
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/bootstrap`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+
+        if (!response.ok) {
+          throw new Error('bootstrap_request_failed')
+        }
+
+        const data = await response.json()
+        const syncedAt = await saveBootstrapCache(data)
+
+        if (cancelled) return
+
+        setBootstrap(data)
+        setBootstrapMeta({ source: 'network', syncedAt })
+        return
+      } catch {
+        const cached = await getBootstrapCache()
+        const cachedSyncedAt = await getLastBootstrapSyncAt()
+
+        if (!cancelled && cached?.payload) {
+          setBootstrap(cached.payload)
+          setBootstrapMeta({ source: 'cache', syncedAt: cached.syncedAt || cachedSyncedAt })
+          setBootstrapErr('Using cached form options while offline or while the API is unavailable.')
+          return
+        }
+
+        if (!cancelled) {
+          setBootstrap(null)
+          setBootstrapMeta({ source: 'network', syncedAt: null })
+          setBootstrapErr('Could not load form options. Is the API running?')
+        }
+      }
+    }
+
+    loadBootstrap()
+
+    return () => {
+      cancelled = true
+    }
   }, [token, refreshKey])
 
   useEffect(() => {
@@ -83,6 +142,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
 
   function handleDataChanged() {
     setRefreshKey(k => k + 1)
+    setSyncRefreshKey(k => k + 1)
   }
 
   function navigate(tabId) {
@@ -98,12 +158,23 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
     <div className="shell">
       <header className="shell-header">
         <div className="shell-header-left">
-          <span className="shell-logo">Budget</span>
-          <span className="shell-logo-dot">.</span>
+          <img src={logoUrl} alt="Budgeting App logo" className="shell-logo-mark" />
+          <div className="shell-logo-lockup">
+            <span className="shell-logo">Budget</span>
+            <span className="shell-logo-dot">.</span>
+          </div>
         </div>
 
-        <div className="shell-header-center shell-breadcrumb">
-          {activeItem?.label}
+        <div className="shell-header-center shell-breadcrumb shell-header-center--stacked">
+          <span>{activeItem?.label}</span>
+          <span className={`shell-sync-status shell-sync-status--${isOnline ? 'online' : 'offline'}`}>
+            {isOnline ? 'Online' : 'Offline'}
+            {bootstrapMeta.source === 'cache' ? ' · cached data' : ''}
+            {syncing > 0 ? ` · syncing: ${syncing}` : ''}
+            {pending > 0 ? ` · pending sync: ${pending}` : ''}
+            {failed > 0 ? ` · failed sync: ${failed}` : ''}
+            {bootstrapMeta.syncedAt ? ` · ${new Date(bootstrapMeta.syncedAt).toLocaleString()}` : ''}
+          </span>
         </div>
 
         <div className="shell-header-right">
@@ -228,7 +299,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
 
           {activeTab === 'accounts' && (
             <section className="form-card form-card--wide">
-              <h2 className="section-title">Accounts Settings</h2>
+              <h2 className="section-title">Accounts</h2>
               <AccountsManager
                 token={token}
                 refreshKey={refreshKey}
@@ -238,11 +309,10 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
           )}
 
           {activeTab === 'subcategories' && (
-            <section className="form-card">
-              <h2 className="section-title">Subcategories Settings</h2>
+            <section className="form-card form-card--wide">
+              <h2 className="section-title">Subcategories</h2>
               <SubcategoriesManager
                 token={token}
-                bootstrap={bootstrap}
                 refreshKey={refreshKey}
                 onChanged={handleDataChanged}
               />
@@ -260,13 +330,23 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
               className={`bottom-nav-item${activeTab === item.id ? ' active' : ''}`}
               onClick={() => navigate(item.id)}
             >
-              <Icon size={20} />
+              <Icon size={16} />
               <span>{item.label}</span>
             </button>
           )
         })}
 
         <div className="bottom-nav-more-wrap" ref={moreRef}>
+          <button
+            className={`bottom-nav-item${overflowActive ? ' active' : ''}`}
+            onClick={() => setMoreOpen(o => !o)}
+            aria-label="More"
+            aria-expanded={moreOpen}
+          >
+            <MoreHorizontal size={16} />
+            <span>More</span>
+          </button>
+
           {moreOpen && (
             <div className="more-popup" role="menu">
               {BOTTOM_OVERFLOW.map(item => {
@@ -275,26 +355,17 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
                   <button
                     key={item.id}
                     className={`more-popup-item${activeTab === item.id ? ' active' : ''}`}
-                    role="menuitem"
                     onClick={() => navigate(item.id)}
+                    role="menuitem"
                   >
-                    <Icon size={16} />
+                    <Icon size={15} />
                     <span>{item.label}</span>
-                    <ChevronRight size={13} className="more-popup-arrow" />
+                    <ChevronRight size={14} className="more-popup-arrow" />
                   </button>
                 )
               })}
             </div>
           )}
-
-          <button
-            className={`bottom-nav-item${overflowActive ? ' active' : ''}`}
-            onClick={() => setMoreOpen(o => !o)}
-            aria-expanded={moreOpen}
-          >
-            <MoreHorizontal size={20} />
-            <span>More</span>
-          </button>
         </div>
       </nav>
     </div>

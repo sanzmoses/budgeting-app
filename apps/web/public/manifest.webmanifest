@@ -1,0 +1,24 @@
+{
+  "name": "Budgeting App",
+  "short_name": "Budget",
+  "description": "Personal budgeting app with offline-ready mobile PWA groundwork.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e1e1e",
+  "theme_color": "#007acc",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/logo-budgeting-app.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/logo-budgeting-app.png",
+      "sizes": "35x36",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import EditTransactionModal from './EditTransactionModal'
 import { useToast } from './ToastProvider'
+import { getOfflineTransactionsByMonth } from './offlineTransactions'
+import { toOfflineTransactionView } from './offlineTxnView'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -77,7 +79,20 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
         if (!r.ok) throw new Error(payload.error || 'Could not load transactions')
         setData(payload)
       })
-      .catch((err) => {
+      .catch(async (err) => {
+        const offlineRows = await getOfflineTransactionsByMonth(month, filterType)
+
+        if (offlineRows.length > 0) {
+          setData({
+            transactions: offlineRows.map(row => toOfflineTransactionView(row, bootstrap)),
+            count: offlineRows.length,
+            offlineOnly: true,
+          })
+          setError('Showing locally saved transactions while offline.')
+          showToast({ tone: 'warning', message: 'Showing locally saved transactions while offline.' })
+          return
+        }
+
         const nextError = err.message || 'Could not load transactions'
         setError(nextError)
         showToast({ tone: 'error', message: nextError })
@@ -148,15 +163,19 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
 
       {!loading && data && data.transactions.length > 0 && (
         <>
-          <p className="txn-count">{data.count} transaction{data.count !== 1 ? 's' : ''}</p>
+          <p className="txn-count">
+            {data.count} transaction{data.count !== 1 ? 's' : ''}
+            {data.offlineOnly ? ' · local only' : ''}
+          </p>
           <ul className="txn-list">
             {data.transactions.map(t => (
-              <li key={t.id} className={`txn-item txn-item--${t.type}`}>
+              <li key={t.id} className={`txn-item txn-item--${t.type}${t.syncStatus ? ' txn-item--pending' : ''}`}>
                 <div className="txn-item-left">
                   <span className={`txn-type-badge txn-type-badge--${t.type}`}>{t.type}</span>
                   <div className="txn-item-info">
                     <span className="txn-label">{txnLabel(t)}</span>
                     {txnSub(t) && <span className="txn-sub">{txnSub(t)}</span>}
+                    {t.syncStatus && <span className="txn-sync-pill">Pending sync</span>}
                   </div>
                 </div>
                 <div className="txn-item-right">
@@ -169,7 +188,7 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
                     <button
                       className="txn-btn-edit"
                       onClick={() => handleEditOpen(t)}
-                      disabled={deleting === t.id}
+                      disabled={deleting === t.id || !!t.syncStatus}
                       title="Edit"
                     >
                       Edit
@@ -177,7 +196,7 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
                     <button
                       className="txn-btn-delete"
                       onClick={() => handleDelete(t)}
-                      disabled={deleting === t.id}
+                      disabled={deleting === t.id || !!t.syncStatus}
                       title="Delete"
                     >
                       {deleting === t.id ? '…' : 'Del'}

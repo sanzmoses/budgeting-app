@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from './ToastProvider'
+import { queueOfflineTransactionCreate } from './offlineTransactions'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -102,8 +103,28 @@ export default function ExpenseForm({ token, bootstrap, onCreated }) {
       setPlaceId('')
       onCreated?.()
     } catch {
-      setError('Could not reach the server')
-      showToast({ tone: 'error', message: 'Could not reach the server' })
+      try {
+        await queueOfflineTransactionCreate({
+          type: 'expense',
+          transaction_date: date,
+          account_id: Number(accountId),
+          category_id: Number(categoryId),
+          subcategory_id: Number(subcategoryId),
+          place_id: placeId ? Number(placeId) : null,
+          amount: parseFloat(amount),
+          description: description || '',
+        })
+        const nextMessage = 'Expense saved locally. It will sync when connection returns.'
+        setSuccess(nextMessage)
+        showToast({ tone: 'warning', message: nextMessage })
+        setAmount('')
+        setDescription('')
+        setPlaceId('')
+        onCreated?.()
+      } catch {
+        setError('Could not reach the server')
+        showToast({ tone: 'error', message: 'Could not reach the server' })
+      }
     } finally {
       setLoading(false)
     }
