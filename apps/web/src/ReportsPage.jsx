@@ -27,11 +27,6 @@ function compactFmt(amount) {
   })
 }
 
-function periodLabel(summary, mode) {
-  if (mode === 'monthly') return summary?.month || currentMonth()
-  return summary?.date || currentDate()
-}
-
 export default function ReportsPage({ token, onAddExpense }) {
   const { showToast } = useToast()
   const [mode, setMode] = useState('monthly')
@@ -101,55 +96,18 @@ export default function ReportsPage({ token, onAddExpense }) {
 
   return (
     <div className="reports-page reports-dashboard-page">
-      <div className="reports-toolbar-card reports-toolbar-card--landing">
-        <div className="reports-toolbar-topline">
-          <div>
-            <p className="reports-hero-kicker">Current total expense</p>
-            <h2 className="reports-hero-title">Overview</h2>
-          </div>
-
-          <div className="reports-toggle" role="tablist" aria-label="Report period mode">
-            <button
-              type="button"
-              className={`reports-toggle-btn${mode === 'monthly' ? ' active' : ''}`}
-              onClick={() => setMode('monthly')}
-            >
-              Monthly
-            </button>
-            <button
-              type="button"
-              className={`reports-toggle-btn${mode === 'daily' ? ' active' : ''}`}
-              onClick={() => setMode('daily')}
-            >
-              Daily
-            </button>
-          </div>
-        </div>
-
-        <div className="reports-picker-wrap reports-picker-wrap--landing">
-          <label className="budget-month-label">
-            <span>Month</span>
-            <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} />
-          </label>
-          <label className="budget-month-label">
-            <span>Day</span>
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-          </label>
-        </div>
-      </div>
-
       {loading && <p className="form-loading">Loading reports…</p>}
       {error && <p className="form-error">{error}</p>}
 
       {!loading && !error && monthlySummary && dailySummary && (
         <>
           <section className="report-hero-card">
-            <div className="report-hero-label-row">
-              <span className="report-hero-label">This month</span>
-              <span className="report-hero-period">{periodLabel(monthlySummary, 'monthly')}</span>
-            </div>
+            <p className="reports-hero-kicker">Overview</p>
 
-            <div className="report-hero-value">₱{compactFmt(monthlySummary.expense_total)}</div>
+            <div className="report-hero-value-wrap">
+              <span className="report-hero-label">This month</span>
+              <div className="report-hero-value">₱{compactFmt(monthlySummary.expense_total)}</div>
+            </div>
 
             <div className="report-hero-daily">
               <span className="report-hero-daily-label">Today</span>
@@ -166,11 +124,6 @@ export default function ReportsPage({ token, onAddExpense }) {
             <div className="report-panel-head report-panel-head--stacked-mobile">
               <div>
                 <h3 className="section-title section-title--report-panel">Expense Breakdown</h3>
-                <p className="report-panel-sub">
-                  {mode === 'monthly'
-                    ? `Category totals for ${periodLabel(monthlySummary, 'monthly')}`
-                    : `Category totals for ${periodLabel(dailySummary, 'daily')}`}
-                </p>
               </div>
             </div>
 
