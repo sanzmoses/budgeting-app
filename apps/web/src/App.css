@@ -375,6 +375,266 @@ input, select, textarea {
   max-width: 1040px;
 }
 
+.form-card--reports {
+  max-width: 1120px;
+}
+
+/* ============================================================
+   REPORTS
+   ============================================================ */
+
+.reports-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reports-toolbar-card,
+.report-panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  padding: 14px;
+}
+
+.report-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.report-panel-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  text-align: right;
+}
+
+.reports-toolbar-card {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.reports-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+}
+
+.reports-toggle-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reports-toggle-btn.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.reports-picker-wrap {
+  display: flex;
+  align-items: flex-end;
+}
+
+.reports-picker-wrap input[type="date"],
+.reports-picker-wrap input[type="month"] {
+  padding: 6px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  border-radius: 0;
+  -webkit-appearance: none;
+}
+
+.reports-picker-wrap input[type="date"]:focus,
+.reports-picker-wrap input[type="month"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.reports-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.report-card-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.report-card-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-card--income .report-card-value {
+  color: var(--income-color);
+}
+
+.report-card--expense .report-card-value {
+  color: var(--expense-color);
+}
+
+.report-card--transfer .report-card-value {
+  color: var(--transfer-color);
+}
+
+.report-bars {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: end;
+  min-height: 240px;
+}
+
+.report-bars-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.report-bars-value,
+.report-bars-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.report-bars-value {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-bars-track {
+  height: 160px;
+  width: 100%;
+  max-width: 120px;
+  background: color-mix(in srgb, var(--bg-surface) 50%, transparent);
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: flex-end;
+}
+
+.report-bars-fill {
+  width: 100%;
+}
+
+.report-bars-fill--income {
+  background: var(--income-color);
+}
+
+.report-bars-fill--expense {
+  background: var(--expense-color);
+}
+
+.report-bars-fill--transfer {
+  background: var(--transfer-color);
+}
+
+.report-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.report-breakdown-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: color-mix(in srgb, var(--bg-surface) 18%, transparent);
+  border: 1px solid var(--border-light);
+  padding: 12px;
+}
+
+.report-breakdown-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.report-breakdown-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.report-breakdown-name,
+.report-breakdown-amount,
+.report-breakdown-list-title,
+.report-breakdown-list-amount {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.report-breakdown-amount,
+.report-breakdown-list-amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.report-breakdown-track {
+  height: 12px;
+  background: color-mix(in srgb, var(--bg-surface) 50%, transparent);
+  border: 1px solid var(--border-light);
+}
+
+.report-breakdown-fill {
+  height: 100%;
+  background: var(--expense-color);
+}
+
+.report-breakdown-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: color-mix(in srgb, var(--bg-surface) 18%, transparent);
+  border: 1px solid var(--border-light);
+  padding: 12px;
+}
+
+.report-breakdown-list-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--bg-surface) 30%, transparent);
+  border: 1px solid var(--border-light);
+}
+
+.report-breakdown-list-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
 /* ============================================================
    LOGIN PAGE
    ============================================================ */
@@ -1612,6 +1872,38 @@ input, select, textarea {
     width: 100%;
   }
 
+  .reports-toolbar-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .reports-picker-wrap {
+    width: 100%;
+  }
+
+  .reports-picker-wrap .budget-month-label {
+    width: 100%;
+  }
+
+  .reports-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-bars {
+    gap: 10px;
+    min-height: 220px;
+  }
+
+  .report-bars-track {
+    max-width: none;
+  }
+
+  .report-breakdown-head,
+  .report-breakdown-list-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .balances-grid {
     grid-template-columns: 1fr;
   }
@@ -1648,6 +1940,10 @@ input, select, textarea {
    ============================================================ */
 
 @media (max-width: 390px) {
+  .reports-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
   .bottom-nav-item span {
     display: none;
   }

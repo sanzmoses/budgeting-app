@@ -21,6 +21,7 @@ import AccountBalances from './AccountBalances'
 import BudgetManager from './BudgetManager'
 import AccountsManager from './AccountsManager'
 import SubcategoriesManager from './SubcategoriesManager'
+import ReportsPage from './ReportsPage'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { id: 'income', label: 'Income', icon: TrendingUp },
   { id: 'savings', label: 'Savings', icon: ArrowLeftRight },
   { id: 'transactions', label: 'Transactions', icon: List },
+  { id: 'reports', label: 'Reports', icon: BarChart2 },
   { id: 'balances', label: 'Balances', icon: Wallet },
   { id: 'budgets', label: 'Budgets', icon: BarChart2 },
   { id: 'accounts', label: 'Accounts', icon: Settings },
@@ -202,6 +204,13 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
             <section className="form-card form-card--wide">
               <h2 className="section-title">Account Balances</h2>
               <AccountBalances token={token} refreshKey={refreshKey} />
+            </section>
+          )}
+
+          {activeTab === 'reports' && (
+            <section className="form-card form-card--wide form-card--reports">
+              <h2 className="section-title">Reports</h2>
+              <ReportsPage token={token} />
             </section>
           )}
 

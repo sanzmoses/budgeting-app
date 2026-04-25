@@ -49,9 +49,9 @@ if ($method === 'GET' && $path === '/health') {
 if ($method === 'GET' && $path === '/') {
     echo json_encode([
         'app'     => APP_NAME,
-        'version' => '0.6.0',
-        'phase'   => 6,
-        'status'  => 'Phase 6 — settings management',
+        'version' => '0.7.0',
+        'phase'   => 7,
+        'status'  => 'Phase 7 — reporting',
     ]);
     exit;
 }
@@ -488,6 +488,129 @@ function normalize_budget_month(string $value): ?string
     return null;
 }
 
+function normalize_report_period(): array
+{
+    $period = $_GET['period'] ?? 'monthly';
+    if (!in_array($period, ['daily', 'monthly'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'period must be daily or monthly']);
+        exit;
+    }
+
+    if ($period === 'daily') {
+        $date = trim($_GET['date'] ?? date('Y-m-d'));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'date must be YYYY-MM-DD']);
+            exit;
+        }
+
+        return [
+            'period' => 'daily',
+            'date' => $date,
+            'month' => substr($date, 0, 7),
+            'start' => $date,
+            'end' => $date,
+        ];
+    }
+
+    $month = $_GET['month'] ?? date('Y-m');
+    if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'month must be YYYY-MM']);
+        exit;
+    }
+
+    $start = $month . '-01';
+
+    return [
+        'period' => 'monthly',
+        'date' => null,
+        'month' => $month,
+        'start' => $start,
+        'end' => date('Y-m-t', strtotime($start)),
+    ];
+}
+
+function report_summary_payload(array $range): array
+{
+    $stmt = db()->prepare(
+        'SELECT
+            COALESCE(SUM(CASE WHEN type = "income" THEN amount ELSE 0 END), 0) AS income_total,
+            COALESCE(SUM(CASE WHEN type = "expense" THEN amount ELSE 0 END), 0) AS expense_total,
+            COALESCE(SUM(CASE WHEN type = "transfer" THEN amount ELSE 0 END), 0) AS savings_total
+         FROM transactions
+         WHERE deleted_at IS NULL
+           AND transaction_date >= ?
+           AND transaction_date <= ?'
+    );
+    $stmt->execute([$range['start'], $range['end']]);
+    $totals = $stmt->fetch() ?: [];
+
+    $income = round((float) ($totals['income_total'] ?? 0), 2);
+    $expense = round((float) ($totals['expense_total'] ?? 0), 2);
+    $savings = round((float) ($totals['savings_total'] ?? 0), 2);
+
+    return [
+        'period' => $range['period'],
+        'date' => $range['date'],
+        'month' => $range['month'],
+        'range_start' => $range['start'],
+        'range_end' => $range['end'],
+        'income_total' => $income,
+        'expense_total' => $expense,
+        'savings_total' => $savings,
+        'net_total' => round($income - $expense, 2),
+    ];
+}
+
+function report_expenses_by_category_payload(array $range): array
+{
+    $stmt = db()->prepare(
+        'SELECT
+            c.id AS category_id,
+            c.name AS category_name,
+            COALESCE(SUM(t.amount), 0) AS amount
+         FROM transactions t
+         JOIN categories c ON c.id = t.category_id
+         WHERE t.deleted_at IS NULL
+           AND t.type = "expense"
+           AND t.transaction_date >= ?
+           AND t.transaction_date <= ?
+         GROUP BY c.id, c.name
+         ORDER BY amount DESC, c.name ASC'
+    );
+    $stmt->execute([$range['start'], $range['end']]);
+    $rows = $stmt->fetchAll();
+
+    $expenseTotal = array_reduce($rows, function ($sum, $row) {
+        return $sum + (float) $row['amount'];
+    }, 0.0);
+
+    $categories = array_map(function ($row) use ($expenseTotal) {
+        $amount = round((float) $row['amount'], 2);
+        $percentage = $expenseTotal > 0 ? round(($amount / $expenseTotal) * 100, 2) : 0.0;
+
+        return [
+            'category_id' => (int) $row['category_id'],
+            'category_name' => $row['category_name'],
+            'amount' => $amount,
+            'percentage' => $percentage,
+        ];
+    }, $rows);
+
+    return [
+        'period' => $range['period'],
+        'date' => $range['date'],
+        'month' => $range['month'],
+        'range_start' => $range['start'],
+        'range_end' => $range['end'],
+        'expense_total' => round($expenseTotal, 2),
+        'count' => count($categories),
+        'categories' => $categories,
+    ];
+}
+
 function subcategory_payload(array $row): array
 {
     return [
@@ -748,6 +871,24 @@ if ($method === 'GET' && $path === '/accounts/balances') {
     $balances = array_map('compute_account_balance', $ids);
 
     echo json_encode(['balances' => $balances]);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /reports/summary?period=daily&date=YYYY-MM-DD or ?period=monthly&month=YYYY-MM
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/reports/summary') {
+    require_auth();
+    echo json_encode(report_summary_payload(normalize_report_period()));
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// GET /reports/expenses-by-category?period=daily&date=YYYY-MM-DD or ?period=monthly&month=YYYY-MM
+// ---------------------------------------------------------------------------
+if ($method === 'GET' && $path === '/reports/expenses-by-category') {
+    require_auth();
+    echo json_encode(report_expenses_by_category_payload(normalize_report_period()));
     exit;
 }
 

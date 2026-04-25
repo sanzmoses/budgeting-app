@@ -27,8 +27,8 @@ Use this file to resume work quickly in a future session.
 - Monthly budgets at category level for MVP
 - Account balances computed from ledger transactions
 - Web-first MVP
-- Reports later
-- Mobile later
+- Reports planned next via `docs/reporting-plan.md`
+- Mobile-first reporting required for Phase 7A
 - Offline later
 
 ## Phase status
@@ -42,7 +42,7 @@ Use this file to resume work quickly in a future session.
 | 4     | Transaction mgmt/balances | Complete    |
 | 5     | Budgets                   | Complete    |
 | 6     | Settings management       | Not started |
-| 7     | Reports                   | Deferred    |
+| 7     | Reports                   | Planned     |
 
 ## Phase 2 — what was completed
 
@@ -181,7 +181,18 @@ Phase 5 checks verified on production:
 - Live login, budgets tab, and budget create/update flow confirmed ✓
 - Production API aligned to budgeting-app source-of-truth DB secrets ✓
 
-## Next phase: Phase 6 — settings management
+## Next phase: Phase 7A — reports
+
+Agreed reporting decisions:
+- Add a dedicated Reports tab
+- Support Daily and Monthly modes
+- Default to today/current month with picker controls
+- Savings in reports should count all transfer transactions for now
+- Keep the reporting UI mobile-friendly from the start
+- Use dedicated report endpoints instead of forcing the frontend to compute everything from raw transactions
+
+Primary reference:
+- `docs/reporting-plan.md`
 
 ## Rule for future sessions
 

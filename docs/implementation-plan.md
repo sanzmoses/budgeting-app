@@ -452,13 +452,29 @@ Checks:
 - inactive items no longer appear where they should not
 
 ## Phase 7 - reports
-Deferred.
+Planned.
 
-Possible later deliverables:
-- monthly summary
-- category breakdown
-- account movement summary
+Phase 7A scope is now defined in `docs/reporting-plan.md`.
+
+Phase 7A deliverables:
+- Reports tab in the frontend
+- Daily and Monthly report modes
+- Default today/current-month reporting views with picker controls
+- Summary cards for income, expense, savings, and net
+- Summary chart for the selected period
+- Expense category breakdown chart/list
+- Mobile-friendly reporting layout
+- Dedicated API endpoints for report summaries and expense-by-category breakdown
+
+Agreed reporting rule for the first version:
+- Savings in reports should count **all transfer transactions**.
+
+Possible later deliverables after Phase 7A:
+- multi-period trends
+- previous-period comparison
+- subcategory drilldown
 - budget utilization views
+- account movement summary
 
 ## Test Strategy By Phase
 Each phase should have its own verification checklist before moving on.
@@ -485,5 +501,4 @@ When resuming in another session:
 - Should income description remain free text or be partially standardized? To confirm during form implementation
 
 ## Recommended Next Step
-Phase 6 — settings management. Implement CRUD/maintenance flows for accounts,
-categories, subcategories, places, income sources, and users.
+Phase 7A — reporting. Implement the dedicated report endpoints first, then add the Reports tab and mobile-friendly reporting UI described in `docs/reporting-plan.md`.
