@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from './ToastProvider'
+import { readJsonResponse } from './http'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -32,9 +33,8 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
     fetch(`${API_BASE_URL}/budgets?month=${month}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(async (res) => {
-        const payload = await res.json()
-        if (!res.ok) throw new Error(payload.error || 'Failed to load budgets')
+      .then((res) => readJsonResponse(res, 'Failed to load budgets'))
+      .then((payload) => {
         setData(payload)
         const nextDrafts = {}
         payload.budgets.forEach((budget) => {

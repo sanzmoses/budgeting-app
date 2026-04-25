@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from './ToastProvider'
+import { readJsonResponse } from './http'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -31,7 +32,7 @@ function SummaryBars({ summary }) {
   const items = [
     { key: 'income', label: 'Income', value: Number(summary?.income_total || 0), tone: 'income' },
     { key: 'expense', label: 'Expense', value: Number(summary?.expense_total || 0), tone: 'expense' },
-    { key: 'savings', label: 'Savings', value: Number(summary?.savings_total || 0), tone: 'transfer' },
+    { key: 'savings', label: 'Savings', value: Number(summary?.transfer_total || 0), tone: 'transfer' },
   ]
   const max = Math.max(...items.map(item => item.value), 0)
 
@@ -54,8 +55,9 @@ function SummaryBars({ summary }) {
 }
 
 function CategoryBreakdown({ breakdown }) {
-  const categories = breakdown?.categories || []
-  const max = Math.max(...categories.map(item => Number(item.amount || 0)), 0)
+  const categories = breakdown?.breakdown || []
+  const totalExpense = categories.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
+  const max = Math.max(...categories.map(item => Number(item.total_amount || 0)), 0)
 
   if (categories.length === 0) {
     return <p className="txn-empty">No expense categories for this period.</p>
@@ -64,13 +66,13 @@ function CategoryBreakdown({ breakdown }) {
   return (
     <div className="report-breakdown">
       <div className="report-breakdown-chart">
-        {categories.map((item) => {
-          const width = max > 0 ? (Number(item.amount || 0) / max) * 100 : 0
+        {categories.map((item, index) => {
+          const width = max > 0 ? (Number(item.total_amount || 0) / max) * 100 : 0
           return (
-            <div key={item.category_id} className="report-breakdown-row">
+            <div key={`${item.category_id || 'uncat'}-${item.subcategory_id || index}`} className="report-breakdown-row">
               <div className="report-breakdown-head">
-                <span className="report-breakdown-name">{item.category_name}</span>
-                <span className="report-breakdown-amount">PHP {fmt(item.amount)}</span>
+                <span className="report-breakdown-name">{item.subcategory_name || item.category_name}</span>
+                <span className="report-breakdown-amount">PHP {fmt(item.total_amount)}</span>
               </div>
               <div className="report-breakdown-track">
                 <div className="report-breakdown-fill" style={{ width: `${width}%` }} />
@@ -81,15 +83,18 @@ function CategoryBreakdown({ breakdown }) {
       </div>
 
       <ul className="report-breakdown-list">
-        {categories.map((item) => (
-          <li key={item.category_id} className="report-breakdown-list-item">
-            <div>
-              <div className="report-breakdown-list-title">{item.category_name}</div>
-              <div className="report-breakdown-list-meta">{fmt(item.percentage)}% of expenses</div>
-            </div>
-            <div className="report-breakdown-list-amount">PHP {fmt(item.amount)}</div>
-          </li>
-        ))}
+        {categories.map((item, index) => {
+          const percentage = totalExpense > 0 ? (Number(item.total_amount || 0) / totalExpense) * 100 : 0
+          return (
+            <li key={`${item.category_id || 'uncat'}-${item.subcategory_id || index}`} className="report-breakdown-list-item">
+              <div>
+                <div className="report-breakdown-list-title">{item.subcategory_name || item.category_name}</div>
+                <div className="report-breakdown-list-meta">{fmt(percentage)}% of expenses</div>
+              </div>
+              <div className="report-breakdown-list-amount">PHP {fmt(item.total_amount)}</div>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
@@ -120,18 +125,10 @@ export default function ReportsPage({ token }) {
     Promise.all([
       fetch(`${API_BASE_URL}/reports/summary?${queryString}`, {
         headers: { Authorization: `Bearer ${token}` },
-      }).then(async (res) => {
-        const payload = await res.json()
-        if (!res.ok) throw new Error(payload.error || 'Failed to load report summary')
-        return payload
-      }),
-      fetch(`${API_BASE_URL}/reports/expenses-by-category?${queryString}`, {
+      }).then((res) => readJsonResponse(res, 'Failed to load report summary')),
+      fetch(`${API_BASE_URL}/reports/category-breakdown?${queryString}`, {
         headers: { Authorization: `Bearer ${token}` },
-      }).then(async (res) => {
-        const payload = await res.json()
-        if (!res.ok) throw new Error(payload.error || 'Failed to load expense breakdown')
-        return payload
-      }),
+      }).then((res) => readJsonResponse(res, 'Failed to load expense breakdown')),
     ])
       .then(([summaryPayload, breakdownPayload]) => {
         if (cancelled) return
@@ -196,7 +193,7 @@ export default function ReportsPage({ token }) {
           <div className="reports-summary-grid">
             <SummaryCard label="Income" value={summary.income_total} tone="income" />
             <SummaryCard label="Expense" value={summary.expense_total} tone="expense" />
-            <SummaryCard label="Savings" value={summary.savings_total} tone="transfer" />
+            <SummaryCard label="Savings" value={summary.transfer_total} tone="transfer" />
             <SummaryCard label="Net" value={summary.net_total} tone={summary.net_total < 0 ? 'expense' : 'neutral'} />
           </div>
 
@@ -216,7 +213,7 @@ export default function ReportsPage({ token }) {
             <div className="report-panel-head">
               <h3 className="section-title">Expense Breakdown</h3>
               <p className="report-panel-sub">
-                Total expense: PHP {fmt(breakdown.expense_total)}
+                Total expense: PHP {fmt(summary.expense_total)}
               </p>
             </div>
             <CategoryBreakdown breakdown={breakdown} />

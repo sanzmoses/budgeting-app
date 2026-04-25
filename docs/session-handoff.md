@@ -29,8 +29,8 @@ Use this file to resume work quickly in a future session.
 - Web-first MVP
 - Reports planned next via `docs/reporting-plan.md`
 - Mobile-first reporting required for Phase 7A
-- Offline later
 - Offline/PWA planning reference: `docs/offline-pwa-plan.md`
+- Phase 7B PWA/offline checkpoint: `docs/phase-7b-pwa-offline-checkpoint-2026-04-25.md`
 
 ## Phase status
 

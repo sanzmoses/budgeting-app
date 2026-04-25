@@ -153,6 +153,14 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
   const activeItem = NAV_ITEMS.find(n => n.id === activeTab)
   const userInitial = (user.name || user.username || '?')[0].toUpperCase()
   const overflowActive = BOTTOM_OVERFLOW.some(i => i.id === activeTab)
+  const shortSyncedAt = bootstrapMeta.syncedAt
+    ? new Date(bootstrapMeta.syncedAt).toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : ''
 
   return (
     <div className="shell">
@@ -173,7 +181,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
             {syncing > 0 ? ` · syncing: ${syncing}` : ''}
             {pending > 0 ? ` · pending sync: ${pending}` : ''}
             {failed > 0 ? ` · failed sync: ${failed}` : ''}
-            {bootstrapMeta.syncedAt ? ` · ${new Date(bootstrapMeta.syncedAt).toLocaleString()}` : ''}
+            {shortSyncedAt ? ` · ${shortSyncedAt}` : ''}
           </span>
         </div>
 

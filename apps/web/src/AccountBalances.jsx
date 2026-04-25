@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getAccountTypeMeta } from './ui'
+import { readJsonResponse } from './http'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -53,17 +54,14 @@ export default function AccountBalances({ token, refreshKey }) {
     fetch(`${API_BASE_URL}/accounts/balances`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(async (r) => {
-        const payload = await r.json()
-        if (!r.ok) throw new Error(payload.error || 'Could not load balances')
-        setData(payload)
-      })
+      .then((r) => readJsonResponse(r, 'Could not load balances'))
+      .then((payload) => setData(payload))
       .catch((err) => setError(err.message || 'Could not load balances'))
       .finally(() => setLoading(false))
   }, [token, refreshKey])
 
   const grouped = useMemo(() => {
-    const balances = data?.balances || []
+    const balances = data?.accounts || []
     const credit = balances.filter((item) => item.type === 'credit')
     const regular = balances.filter((item) => item.type !== 'credit')
 

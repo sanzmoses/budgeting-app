@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from './ToastProvider'
 import { getAccountTypeMeta } from './ui'
+import { readJsonResponse } from './http'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -48,8 +49,7 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
       const res = await fetch(`${API_BASE_URL}/accounts`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      const payload = await res.json()
-      if (!res.ok) throw new Error(payload.error || 'Failed to load accounts')
+      const payload = await readJsonResponse(res, 'Failed to load accounts')
       setAccounts(payload.accounts || [])
     } catch (err) {
       const nextError = err.message || 'Could not load accounts'
