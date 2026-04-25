@@ -287,9 +287,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
           )}
 
           {activeTab === 'reports' && (
-            <section className="form-card form-card--wide form-card--reports form-card--reports-dashboard">
-              <ReportsPage token={token} onAddExpense={() => setActiveTab('expense')} />
-            </section>
+            <ReportsPage token={token} onAddExpense={() => setActiveTab('expense')} />
           )}
 
           {activeTab === 'budgets' && (

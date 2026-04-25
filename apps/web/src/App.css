@@ -432,6 +432,7 @@ input, select, textarea {
 
 .reports-dashboard-page {
   gap: 14px;
+  max-width: 1180px;
 }
 
 .reports-toolbar-card,
@@ -595,7 +596,7 @@ input, select, textarea {
 }
 
 .report-panel--category-cards {
-  padding-top: 16px;
+  padding: 12px;
 }
 
 .report-panel-head--stacked-mobile {
@@ -611,22 +612,22 @@ input, select, textarea {
 .report-category-card-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .report-category-card {
   background: color-mix(in srgb, var(--bg-surface) 34%, transparent);
   border: 1px solid var(--border-light);
-  padding: 16px 14px;
-  min-height: 112px;
+  padding: 12px 10px;
+  min-height: 84px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
+  gap: 0;
 }
 
 .report-category-card-value {
-  font-size: clamp(22px, 7vw, 34px);
+  font-size: clamp(20px, 6vw, 28px);
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--text-primary);
@@ -635,10 +636,10 @@ input, select, textarea {
 }
 
 .report-category-card-label {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   line-height: 1.1;
 }
 
@@ -2093,7 +2094,7 @@ input, select, textarea {
   }
 
   .report-category-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
   .reports-summary-grid {
@@ -2156,7 +2157,21 @@ input, select, textarea {
   }
 
   .report-category-card-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px;
+  }
+
+  .report-category-card {
+    padding: 10px 8px;
+    min-height: 78px;
+  }
+
+  .report-category-card-value {
+    font-size: 20px;
+  }
+
+  .report-category-card-label {
+    font-size: 10px;
   }
 
   .bottom-nav-item span {
