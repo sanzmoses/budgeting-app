@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import logoUrl from './assets/logo-budgeting-app.svg'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -64,8 +65,9 @@ export default function LoginForm({ onLogin }) {
         {/* Login form */}
         <main className="login-main">
           <form className="login-form" onSubmit={handleSubmit}>
-            <h1>Sign in</h1>
-            <p className="login-form-sub">Enter your credentials to continue</p>
+            <div className="login-form-brand" aria-hidden="true">
+              <img src={logoUrl} alt="" className="login-form-brand-mark" />
+            </div>
 
             <div className="form-group">
               <label htmlFor="lf-username">Username</label>

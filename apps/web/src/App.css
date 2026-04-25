@@ -618,7 +618,7 @@ input, select, textarea {
 .report-category-card {
   background: color-mix(in srgb, var(--bg-surface) 34%, transparent);
   border: 1px solid var(--border-light);
-  padding: 12px 10px;
+  padding: 12px 14px;
   min-height: 84px;
   display: flex;
   flex-direction: column;
@@ -905,6 +905,19 @@ input, select, textarea {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.login-form-brand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.login-form-brand-mark {
+  width: 72px;
+  height: 72px;
+  display: block;
 }
 
 .login-form h1 {
@@ -2162,7 +2175,7 @@ input, select, textarea {
   }
 
   .report-category-card {
-    padding: 10px 8px;
+    padding: 10px 12px;
     min-height: 78px;
   }
 
