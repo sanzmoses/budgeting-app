@@ -416,6 +416,10 @@ input, select, textarea {
   max-width: 1120px;
 }
 
+.form-card--reports-dashboard {
+  max-width: 1180px;
+}
+
 /* ============================================================
    REPORTS
    ============================================================ */
@@ -424,6 +428,11 @@ input, select, textarea {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.reports-dashboard-page {
+  gap: 14px;
+  max-width: 1180px;
 }
 
 .reports-toolbar-card,
@@ -453,6 +462,15 @@ input, select, textarea {
   align-items: flex-end;
   justify-content: space-between;
   gap: 14px;
+}
+
+.reports-hero-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 0;
 }
 
 .reports-toggle {
@@ -502,6 +520,127 @@ input, select, textarea {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+
+.report-hero-card {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 92%, transparent), color-mix(in srgb, var(--bg-surface) 94%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border-light));
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.report-hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.report-hero-value-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.report-hero-value {
+  font-size: clamp(40px, 11vw, 72px);
+  line-height: 0.95;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  color: var(--expense-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-hero-daily {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  color: var(--text-secondary);
+}
+
+.report-hero-daily-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.report-hero-daily strong {
+  font-size: 15px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-add-expense-btn {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-fg);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.report-add-expense-btn:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.report-panel--category-cards {
+  padding: 12px;
+}
+
+.report-panel-head--stacked-mobile {
+  margin-bottom: 10px;
+}
+
+.section-title--report-panel {
+  margin-bottom: 6px;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.report-category-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.report-category-card {
+  background: color-mix(in srgb, var(--bg-surface) 34%, transparent);
+  border: 1px solid var(--border-light);
+  padding: 12px 14px;
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+}
+
+.report-category-card-value {
+  font-size: clamp(20px, 6vw, 28px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.report-category-card-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
 }
 
 .report-card {
@@ -766,6 +905,19 @@ input, select, textarea {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.login-form-brand {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.login-form-brand-mark {
+  width: 72px;
+  height: 72px;
+  display: block;
 }
 
 .login-form h1 {
@@ -1945,6 +2097,19 @@ input, select, textarea {
     width: 100%;
   }
 
+  .report-hero-card {
+    padding: 16px;
+  }
+
+  .report-add-expense-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .report-category-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
   .reports-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2002,6 +2167,24 @@ input, select, textarea {
 @media (max-width: 390px) {
   .reports-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .report-category-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px;
+  }
+
+  .report-category-card {
+    padding: 10px 12px;
+    min-height: 78px;
+  }
+
+  .report-category-card-value {
+    font-size: 20px;
+  }
+
+  .report-category-card-label {
+    font-size: 10px;
   }
 
   .bottom-nav-item span {

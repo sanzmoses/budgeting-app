@@ -45,7 +45,7 @@ const BOTTOM_PRIMARY = NAV_ITEMS.slice(0, 4)
 const BOTTOM_OVERFLOW = NAV_ITEMS.slice(4)
 
 export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMode }) {
-  const [activeTab, setActiveTab] = useState('expense')
+  const [activeTab, setActiveTab] = useState('reports')
   const [bootstrap, setBootstrap] = useState(null)
   const [bootstrapErr, setBootstrapErr] = useState('')
   const [bootstrapMeta, setBootstrapMeta] = useState({ source: 'network', syncedAt: null })
@@ -287,10 +287,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
           )}
 
           {activeTab === 'reports' && (
-            <section className="form-card form-card--wide form-card--reports">
-              <h2 className="section-title">Reports</h2>
-              <ReportsPage token={token} />
-            </section>
+            <ReportsPage token={token} onAddExpense={() => setActiveTab('expense')} />
           )}
 
           {activeTab === 'budgets' && (

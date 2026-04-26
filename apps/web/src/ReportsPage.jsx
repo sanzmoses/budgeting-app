@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ArrowRight } from 'lucide-react'
 import { useToast } from './ToastProvider'
 import { readJsonResponse } from './http'
 
@@ -19,98 +20,35 @@ function fmt(amount) {
   })
 }
 
-function SummaryCard({ label, value, tone }) {
-  return (
-    <div className={`report-card report-card--${tone}`}>
-      <div className="report-card-label">{label}</div>
-      <div className="report-card-value">PHP {fmt(value)}</div>
-    </div>
-  )
+function compactFmt(amount) {
+  return Number(amount || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
 }
 
-function SummaryBars({ summary }) {
-  const items = [
-    { key: 'income', label: 'Income', value: Number(summary?.income_total || 0), tone: 'income' },
-    { key: 'expense', label: 'Expense', value: Number(summary?.expense_total || 0), tone: 'expense' },
-    { key: 'savings', label: 'Savings', value: Number(summary?.transfer_total || 0), tone: 'transfer' },
-  ]
-  const max = Math.max(...items.map(item => item.value), 0)
-
-  return (
-    <div className="report-bars">
-      {items.map((item) => {
-        const height = max > 0 ? Math.max((item.value / max) * 100, item.value > 0 ? 10 : 0) : 0
-        return (
-          <div key={item.key} className="report-bars-item">
-            <div className="report-bars-value">PHP {fmt(item.value)}</div>
-            <div className="report-bars-track">
-              <div className={`report-bars-fill report-bars-fill--${item.tone}`} style={{ height: `${height}%` }} />
-            </div>
-            <div className="report-bars-label">{item.label}</div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function CategoryBreakdown({ breakdown }) {
-  const categories = breakdown?.breakdown || []
-  const totalExpense = categories.reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
-  const max = Math.max(...categories.map(item => Number(item.total_amount || 0)), 0)
-
-  if (categories.length === 0) {
-    return <p className="txn-empty">No expense categories for this period.</p>
-  }
-
-  return (
-    <div className="report-breakdown">
-      <div className="report-breakdown-chart">
-        {categories.map((item, index) => {
-          const width = max > 0 ? (Number(item.total_amount || 0) / max) * 100 : 0
-          return (
-            <div key={`${item.category_id || 'uncat'}-${item.subcategory_id || index}`} className="report-breakdown-row">
-              <div className="report-breakdown-head">
-                <span className="report-breakdown-name">{item.subcategory_name || item.category_name}</span>
-                <span className="report-breakdown-amount">PHP {fmt(item.total_amount)}</span>
-              </div>
-              <div className="report-breakdown-track">
-                <div className="report-breakdown-fill" style={{ width: `${width}%` }} />
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <ul className="report-breakdown-list">
-        {categories.map((item, index) => {
-          const percentage = totalExpense > 0 ? (Number(item.total_amount || 0) / totalExpense) * 100 : 0
-          return (
-            <li key={`${item.category_id || 'uncat'}-${item.subcategory_id || index}`} className="report-breakdown-list-item">
-              <div>
-                <div className="report-breakdown-list-title">{item.subcategory_name || item.category_name}</div>
-                <div className="report-breakdown-list-meta">{fmt(percentage)}% of expenses</div>
-              </div>
-              <div className="report-breakdown-list-amount">PHP {fmt(item.total_amount)}</div>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
-}
-
-export default function ReportsPage({ token }) {
+export default function ReportsPage({ token, onAddExpense }) {
   const { showToast } = useToast()
   const [mode, setMode] = useState('monthly')
   const [selectedMonth, setSelectedMonth] = useState(currentMonth())
   const [selectedDate, setSelectedDate] = useState(currentDate())
-  const [summary, setSummary] = useState(null)
+  const [monthlySummary, setMonthlySummary] = useState(null)
+  const [dailySummary, setDailySummary] = useState(null)
   const [breakdown, setBreakdown] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const queryString = useMemo(() => {
+  const monthlyQuery = useMemo(() => {
+    const params = new URLSearchParams({ period: 'monthly', month: selectedMonth })
+    return params.toString()
+  }, [selectedMonth])
+
+  const dailyQuery = useMemo(() => {
+    const params = new URLSearchParams({ period: 'daily', date: selectedDate })
+    return params.toString()
+  }, [selectedDate])
+
+  const breakdownQuery = useMemo(() => {
     const params = new URLSearchParams({ period: mode })
     if (mode === 'daily') params.set('date', selectedDate)
     if (mode === 'monthly') params.set('month', selectedMonth)
@@ -123,16 +61,20 @@ export default function ReportsPage({ token }) {
     setError('')
 
     Promise.all([
-      fetch(`${API_BASE_URL}/reports/summary?${queryString}`, {
+      fetch(`${API_BASE_URL}/reports/summary?${monthlyQuery}`, {
         headers: { Authorization: `Bearer ${token}` },
-      }).then((res) => readJsonResponse(res, 'Failed to load report summary')),
-      fetch(`${API_BASE_URL}/reports/category-breakdown?${queryString}`, {
+      }).then((res) => readJsonResponse(res, 'Failed to load monthly summary')),
+      fetch(`${API_BASE_URL}/reports/summary?${dailyQuery}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((res) => readJsonResponse(res, 'Failed to load daily summary')),
+      fetch(`${API_BASE_URL}/reports/category-breakdown?${breakdownQuery}`, {
         headers: { Authorization: `Bearer ${token}` },
       }).then((res) => readJsonResponse(res, 'Failed to load expense breakdown')),
     ])
-      .then(([summaryPayload, breakdownPayload]) => {
+      .then(([monthlyPayload, dailyPayload, breakdownPayload]) => {
         if (cancelled) return
-        setSummary(summaryPayload)
+        setMonthlySummary(monthlyPayload)
+        setDailySummary(dailyPayload)
         setBreakdown(breakdownPayload)
       })
       .catch((err) => {
@@ -148,75 +90,61 @@ export default function ReportsPage({ token }) {
     return () => {
       cancelled = true
     }
-  }, [token, queryString, showToast])
+  }, [token, monthlyQuery, dailyQuery, breakdownQuery, showToast])
+
+  const expenseCards = breakdown?.breakdown || []
 
   return (
-    <div className="reports-page">
-      <div className="reports-toolbar-card">
-        <div className="reports-toggle" role="tablist" aria-label="Report period mode">
-          <button
-            type="button"
-            className={`reports-toggle-btn${mode === 'monthly' ? ' active' : ''}`}
-            onClick={() => setMode('monthly')}
-          >
-            Monthly
-          </button>
-          <button
-            type="button"
-            className={`reports-toggle-btn${mode === 'daily' ? ' active' : ''}`}
-            onClick={() => setMode('daily')}
-          >
-            Daily
-          </button>
-        </div>
-
-        <div className="reports-picker-wrap">
-          {mode === 'monthly' ? (
-            <label className="budget-month-label">
-              <span>Month</span>
-              <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} />
-            </label>
-          ) : (
-            <label className="budget-month-label">
-              <span>Date</span>
-              <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-            </label>
-          )}
-        </div>
-      </div>
-
+    <div className="reports-page reports-dashboard-page">
       {loading && <p className="form-loading">Loading reports…</p>}
       {error && <p className="form-error">{error}</p>}
 
-      {!loading && !error && summary && breakdown && (
+      {!loading && !error && monthlySummary && dailySummary && (
         <>
-          <div className="reports-summary-grid">
-            <SummaryCard label="Income" value={summary.income_total} tone="income" />
-            <SummaryCard label="Expense" value={summary.expense_total} tone="expense" />
-            <SummaryCard label="Savings" value={summary.transfer_total} tone="transfer" />
-            <SummaryCard label="Net" value={summary.net_total} tone={summary.net_total < 0 ? 'expense' : 'neutral'} />
-          </div>
+          <section className="report-hero-card">
+            <p className="reports-hero-kicker">Overview</p>
 
-          <section className="report-panel">
-            <div className="report-panel-head">
-              <h3 className="section-title">Summary Graph</h3>
-              <p className="report-panel-sub">
-                {mode === 'monthly'
-                  ? `Showing totals for ${summary.month}`
-                  : `Showing totals for ${summary.date}`}
-              </p>
+            <div className="report-hero-value-wrap">
+              <span className="report-hero-label">This month</span>
+              <div className="report-hero-value">₱{compactFmt(monthlySummary.expense_total)}</div>
             </div>
-            <SummaryBars summary={summary} />
+
+            <div className="report-hero-daily">
+              <span className="report-hero-daily-label">Today</span>
+              <strong>₱{fmt(dailySummary.expense_total)}</strong>
+            </div>
+
+            <button type="button" className="report-add-expense-btn" onClick={onAddExpense}>
+              <span>Add expense</span>
+              <ArrowRight size={15} />
+            </button>
           </section>
 
-          <section className="report-panel">
-            <div className="report-panel-head">
-              <h3 className="section-title">Expense Breakdown</h3>
-              <p className="report-panel-sub">
-                Total expense: PHP {fmt(summary.expense_total)}
-              </p>
+          <section className="report-panel report-panel--category-cards">
+            <div className="report-panel-head report-panel-head--stacked-mobile">
+              <div>
+                <h3 className="section-title section-title--report-panel">Expense Breakdown</h3>
+              </div>
             </div>
-            <CategoryBreakdown breakdown={breakdown} />
+
+            {expenseCards.length === 0 ? (
+              <p className="txn-empty">No expense categories for this period.</p>
+            ) : (
+              <div className="report-category-card-grid">
+                {expenseCards.map((item, index) => {
+                  const label = item.category_name || item.subcategory_name || 'Uncategorized'
+                  return (
+                    <article
+                      key={`${item.category_id || 'uncat'}-${item.subcategory_id || index}`}
+                      className="report-category-card"
+                    >
+                      <div className="report-category-card-value">₱{compactFmt(item.total_amount)}</div>
+                      <div className="report-category-card-label">{label}</div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
           </section>
         </>
       )}
