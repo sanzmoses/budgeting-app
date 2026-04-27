@@ -3,44 +3,70 @@
    ============================================================ */
 
 :root {
-  --bg-base:      #1e1e1e;
-  --bg-surface:   #252526;
-  --bg-elevated:  #2d2d30;
-  --bg-hover:     #2a2d2e;
-  --bg-active:    #37373d;
-  --bg-input:     #3c3c3c;
-  --border:       #454545;
-  --border-light: #3a3a3a;
-  --text-primary:   #cccccc;
-  --text-secondary: #969696;
-  --text-dim:       #6e6e6e;
-  --accent:       #007acc;
-  --accent-hover: #1a8ad4;
-  --accent-fg:    #ffffff;
-  --expense-color: #f48771;
-  --expense-bg:    rgba(244, 135, 113, 0.14);
-  --income-color:  #b5cea8;
-  --income-bg:     rgba(181, 206, 168, 0.14);
-  --transfer-color: #9cdcfe;
-  --transfer-bg:    rgba(156, 220, 254, 0.12);
-  --danger:      #f14c4c;
-  --danger-bg:   rgba(241, 76, 76, 0.14);
-  --success:     #4ec9b0;
-  --success-bg:  rgba(78, 201, 176, 0.14);
-  --warning:     #f59e0b;
-  --warning-bg:  rgba(245, 158, 11, 0.14);
-  --info:        #38bdf8;
-  --info-bg:     rgba(56, 189, 248, 0.14);
-  --account-checking: #3b82f6;
-  --account-checking-bg: rgba(59, 130, 246, 0.18);
-  --account-savings: #10b981;
-  --account-savings-bg: rgba(16, 185, 129, 0.18);
-  --account-cash: #f59e0b;
-  --account-cash-bg: rgba(245, 158, 11, 0.18);
-  --account-credit: #ef4444;
-  --account-credit-bg: rgba(239, 68, 68, 0.18);
-  --shadow-lg:   0 8px 32px rgba(0, 0, 0, 0.55);
-  --shadow-sm:   0 2px 8px  rgba(0, 0, 0, 0.35);
+  /* Base — dark premium charcoal/slate */
+  --bg-base:      #1E2328;
+  --bg-surface:   #252B31;
+  --bg-elevated:  #2C333A;
+  --bg-hover:     #313940;
+  --bg-active:    #363E47;
+  --bg-input:     #1B2026;
+  --border:       #38424F;
+  --border-light: #2C3540;
+
+  /* Text hierarchy — muted and layered */
+  --text-primary:   #E2E8EF;
+  --text-secondary: #8A9AB0;
+  --text-dim:       #52626E;
+
+  /* Gold/bronze accent */
+  --accent:       #C9A84C;
+  --accent-hover: #D4B55E;
+  --accent-fg:    #1A1200;
+
+  /* Status colors */
+  --expense-color: #F07A65;
+  --expense-bg:    rgba(240, 122, 101, 0.12);
+  --income-color:  #64C690;
+  --income-bg:     rgba(100, 198, 144, 0.12);
+  --transfer-color: #7EC8F5;
+  --transfer-bg:    rgba(126, 200, 245, 0.10);
+  --danger:      #E05252;
+  --danger-bg:   rgba(224, 82, 82, 0.12);
+  --success:     #50C090;
+  --success-bg:  rgba(80, 192, 144, 0.12);
+  --warning:     #D4924A;
+  --warning-bg:  rgba(212, 146, 74, 0.12);
+  --info:        #5AB8E8;
+  --info-bg:     rgba(90, 184, 232, 0.12);
+
+  /* Account type colors */
+  --account-checking: #4A90D9;
+  --account-checking-bg: rgba(74, 144, 217, 0.14);
+  --account-savings: #4ABDA0;
+  --account-savings-bg: rgba(74, 189, 160, 0.14);
+  --account-cash: #C9A84C;
+  --account-cash-bg: rgba(201, 168, 76, 0.14);
+  --account-credit: #D95C5C;
+  --account-credit-bg: rgba(217, 92, 92, 0.14);
+
+  /* Shadow system — soft layered neumorphic */
+  --shadow-sm:   0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg:   0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-card: 5px 5px 18px rgba(0, 0, 0, 0.5), -1px -1px 6px rgba(255, 255, 255, 0.032);
+
+  /* Border radius tokens */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* Hero glass gradient — gold/bronze translucent */
+  --hero-gradient: linear-gradient(
+    145deg,
+    rgba(201, 168, 76, 0.13) 0%,
+    rgba(44, 51, 58, 0.97) 50%,
+    rgba(168, 115, 42, 0.07) 100%
+  );
+
   --sidebar-width:      200px;
   --header-height:       48px;
   --bottom-nav-height:   60px;
@@ -84,6 +110,17 @@
   --account-credit-bg: rgba(220, 38, 38, 0.12);
   --shadow-lg:   0 8px 32px rgba(0, 0, 0, 0.14);
   --shadow-sm:   0 2px 8px  rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08);
+  --accent-fg:   #ffffff;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --hero-gradient: linear-gradient(
+    145deg,
+    rgba(201, 168, 76, 0.06) 0%,
+    rgba(250, 250, 252, 0.97) 50%,
+    rgba(168, 115, 42, 0.04) 100%
+  );
 }
 
 /* ============================================================
@@ -131,8 +168,10 @@ input, select, textarea {
 
 .shell-header {
   height: var(--header-height);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   padding: 0 12px 0 16px;
@@ -211,6 +250,12 @@ input, select, textarea {
   color: var(--warning);
 }
 
+.shell-page-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .shell-header-right {
   display: flex;
   align-items: center;
@@ -231,23 +276,23 @@ input, select, textarea {
 .shell-sidebar {
   width: var(--sidebar-width);
   background: var(--bg-surface);
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--border-light);
   flex-shrink: 0;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 10px 8px;
 }
 
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .sidebar-nav-item {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 8px 16px;
+  padding: 8px 12px;
   font-size: 13px;
   font-weight: 400;
   color: var(--text-secondary);
@@ -255,8 +300,8 @@ input, select, textarea {
   border: none;
   width: 100%;
   text-align: left;
-  transition: background 0.1s, color 0.1s;
-  border-radius: 0;
+  transition: background 0.15s, color 0.15s;
+  border-radius: var(--radius-sm);
 }
 
 .sidebar-nav-item:hover {
@@ -265,15 +310,14 @@ input, select, textarea {
 }
 
 .sidebar-nav-item.active {
-  background: var(--bg-active);
-  color: var(--text-primary);
-  border-left: 2px solid var(--accent);
-  padding-left: 14px;
+  background: rgba(201, 168, 76, 0.10);
+  color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .sidebar-nav-item svg {
   flex-shrink: 0;
-  opacity: 0.75;
+  opacity: 0.7;
 }
 
 .sidebar-nav-item.active svg {
@@ -300,8 +344,8 @@ input, select, textarea {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: linear-gradient(135deg, #C9A84C 0%, #A8732A 100%);
+  color: #1A1200;
   font-size: 12px;
   font-weight: 700;
   border: none;
@@ -309,12 +353,13 @@ input, select, textarea {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: filter 0.15s;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(201, 168, 76, 0.3);
 }
 
 .avatar-btn:hover {
-  background: var(--accent-hover);
+  filter: brightness(1.1);
 }
 
 .avatar-dropdown {
@@ -322,10 +367,12 @@ input, select, textarea {
   top: calc(100% + 8px);
   right: 0;
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
   min-width: 180px;
   z-index: 100;
   box-shadow: var(--shadow-lg);
+  overflow: hidden;
 }
 
 .avatar-dropdown-name {
@@ -403,9 +450,11 @@ input, select, textarea {
 
 .form-card {
   background: var(--bg-surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
   padding: 20px 24px;
   max-width: 680px;
+  box-shadow: var(--shadow-card);
 }
 
 .form-card--wide {
@@ -439,7 +488,9 @@ input, select, textarea {
 .report-panel {
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
-  padding: 14px;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
 }
 
 .report-panel-head {
@@ -465,18 +516,20 @@ input, select, textarea {
 }
 
 .reports-hero-kicker {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  color: rgba(201, 168, 76, 0.65);
   margin-bottom: 0;
 }
 
 .reports-toggle {
   display: inline-flex;
   border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--bg-input);
+  overflow: hidden;
 }
 
 .reports-toggle-btn {
@@ -506,7 +559,7 @@ input, select, textarea {
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
-  border-radius: 0;
+  border-radius: 6px;
   -webkit-appearance: none;
 }
 
@@ -523,20 +576,35 @@ input, select, textarea {
 }
 
 .report-hero-card {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 92%, transparent), color-mix(in srgb, var(--bg-surface) 94%, transparent));
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border-light));
-  padding: 18px;
+  background: var(--hero-gradient);
+  border: 1px solid rgba(201, 168, 76, 0.22);
+  border-radius: var(--radius-lg);
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  box-shadow: var(--shadow-card), 0 0 0 1px rgba(201, 168, 76, 0.06) inset;
+  position: relative;
+  overflow: hidden;
+}
+
+.report-hero-card::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(201, 168, 76, 0.12) 0%, transparent 65%);
+  pointer-events: none;
 }
 
 .report-hero-label {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
+  letter-spacing: 0.07em;
+  color: rgba(201, 168, 76, 0.75);
   margin-bottom: 2px;
 }
 
@@ -581,18 +649,28 @@ input, select, textarea {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px;
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent-fg);
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(201, 168, 76, 0.4);
+  background: rgba(201, 168, 76, 0.14);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .report-add-expense-btn:hover {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  background: rgba(201, 168, 76, 0.22);
+  border-color: rgba(201, 168, 76, 0.6);
+}
+
+.report-hero-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .report-panel--category-cards {
@@ -609,21 +687,37 @@ input, select, textarea {
   border-bottom: none;
 }
 
+.report-panel-period {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
 .report-category-card-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
 .report-category-card {
-  background: color-mix(in srgb, var(--bg-surface) 34%, transparent);
+  background: rgba(44, 51, 58, 0.80);
   border: 1px solid var(--border-light);
-  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
   min-height: 84px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0;
+  gap: 4px;
+  box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.42), -1px -1px 4px rgba(255, 255, 255, 0.03);
+  transition: box-shadow 0.15s;
+}
+
+.report-category-card:hover {
+  box-shadow: 5px 5px 16px rgba(0, 0, 0, 0.5), -1px -1px 4px rgba(255, 255, 255, 0.04);
 }
 
 .report-category-card-value {
@@ -646,10 +740,12 @@ input, select, textarea {
 .report-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
-  padding: 14px;
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  box-shadow: var(--shadow-card);
 }
 
 .report-card-label {
@@ -745,6 +841,7 @@ input, select, textarea {
   gap: 12px;
   background: color-mix(in srgb, var(--bg-surface) 18%, transparent);
   border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
   padding: 12px;
 }
 
@@ -793,6 +890,7 @@ input, select, textarea {
   gap: 8px;
   background: color-mix(in srgb, var(--bg-surface) 18%, transparent);
   border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
   padding: 12px;
 }
 
@@ -993,7 +1091,7 @@ input, select, textarea {
   outline: none;
   width: 100%;
   transition: border-color 0.15s, box-shadow 0.15s;
-  border-radius: 0;
+  border-radius: 6px;
   -webkit-appearance: none;
   appearance: none;
 }
@@ -1057,8 +1155,8 @@ input, select, textarea {
   font-weight: 600;
   border: 1px solid var(--accent);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-  border-radius: 0;
+  transition: background 0.15s, border-color 0.15s, filter 0.15s;
+  border-radius: 6px;
   width: 100%;
 }
 
@@ -1110,7 +1208,7 @@ input, select, textarea {
   color: var(--text-secondary);
   cursor: pointer;
   transition: border-color 0.12s, color 0.12s, background 0.12s;
-  border-radius: 0;
+  border-radius: 6px;
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -1202,6 +1300,7 @@ input, select, textarea {
   padding: 9px 12px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
   transition: background 0.1s;
 }
 
@@ -1398,7 +1497,8 @@ input, select, textarea {
 
 .modal-box {
   background: var(--bg-surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   width: 100%;
   max-width: 480px;
   max-height: 90dvh;
@@ -1408,7 +1508,6 @@ input, select, textarea {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border-radius: 0;
 }
 
 .modal-header {
@@ -1458,6 +1557,7 @@ input, select, textarea {
 .budget-summary-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
   padding: 10px 14px;
   display: flex;
   flex-direction: column;
@@ -1671,6 +1771,7 @@ input, select, textarea {
   padding: 12px 14px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
 }
 
 .settings-item-main {
@@ -1736,10 +1837,12 @@ input, select, textarea {
 .balance-section-card {
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: var(--shadow-card);
 }
 
 .balance-section-header {
@@ -1937,8 +2040,10 @@ input, select, textarea {
   .bottom-nav {
     display: flex;
     align-items: stretch;
-    background: var(--bg-surface);
-    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border-light);
     height: var(--bottom-nav-height);
     flex-shrink: 0;
     position: fixed;
@@ -1991,10 +2096,12 @@ input, select, textarea {
     bottom: calc(100% + 4px);
     right: 0;
     background: var(--bg-elevated);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
     min-width: 180px;
     box-shadow: var(--shadow-lg);
     z-index: 50;
+    overflow: hidden;
   }
 
   .more-popup-item {

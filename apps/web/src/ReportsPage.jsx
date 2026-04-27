@@ -109,21 +109,25 @@ export default function ReportsPage({ token, onAddExpense }) {
               <div className="report-hero-value">₱{compactFmt(monthlySummary.expense_total)}</div>
             </div>
 
-            <div className="report-hero-daily">
-              <span className="report-hero-daily-label">Today</span>
-              <strong>₱{fmt(dailySummary.expense_total)}</strong>
+            <div className="report-hero-footer">
+              <div className="report-hero-daily">
+                <span className="report-hero-daily-label">Today</span>
+                <strong>₱{fmt(dailySummary.expense_total)}</strong>
+              </div>
+              <button type="button" className="report-add-expense-btn" onClick={onAddExpense}>
+                <span>Add expense</span>
+                <ArrowRight size={15} />
+              </button>
             </div>
-
-            <button type="button" className="report-add-expense-btn" onClick={onAddExpense}>
-              <span>Add expense</span>
-              <ArrowRight size={15} />
-            </button>
           </section>
 
           <section className="report-panel report-panel--category-cards">
             <div className="report-panel-head report-panel-head--stacked-mobile">
               <div>
                 <h3 className="section-title section-title--report-panel">Expense Breakdown</h3>
+                <p className="report-panel-period">
+                  {new Date(selectedMonth + '-02').toLocaleString(undefined, { month: 'long', year: 'numeric' })}
+                </p>
               </div>
             </div>
 

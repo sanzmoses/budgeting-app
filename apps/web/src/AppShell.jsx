@@ -174,7 +174,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
         </div>
 
         <div className="shell-header-center shell-breadcrumb shell-header-center--stacked">
-          <span>{activeItem?.label}</span>
+          <span className="shell-page-title">{activeItem?.label}</span>
           <span className={`shell-sync-status shell-sync-status--${isOnline ? 'online' : 'offline'}`}>
             {isOnline ? 'Online' : 'Offline'}
             {bootstrapMeta.source === 'cache' ? ' · cached data' : ''}
