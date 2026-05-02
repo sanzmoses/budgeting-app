@@ -2,6 +2,9 @@
 
 Use this file to resume work quickly in a future session.
 
+Latest architecture checkpoint:
+- 2026-05-02 - frontend API calls now flow through `apiClient`, services, and stores; components consume stores instead of calling `fetch` directly.
+
 ## Current state
 
 - Phase 0 complete — React + Vite frontend scaffold, PHP API scaffold, health endpoints
@@ -18,6 +21,7 @@ Use this file to resume work quickly in a future session.
 1. `README.md`
 2. `docs/infrastructure.md`
 3. `docs/implementation-plan.md`
+4. `docs/service-store-refactor-checkpoint-2026-05-02.md`
 
 ## Agreed decisions
 
@@ -31,6 +35,7 @@ Use this file to resume work quickly in a future session.
 - Mobile-first reporting required for Phase 7A
 - Offline/PWA planning reference: `docs/offline-pwa-plan.md`
 - Phase 7B PWA/offline checkpoint: `docs/phase-7b-pwa-offline-checkpoint-2026-04-25.md`
+- Frontend service/store refactor checkpoint: `docs/service-store-refactor-checkpoint-2026-05-02.md`
 
 ## Phase status
 

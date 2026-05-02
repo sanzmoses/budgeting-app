@@ -12,6 +12,7 @@ This document captures the agreed planning decisions before implementation start
 - Phase 5 complete — monthly budgets CRUD, spent-this-month calculation, remaining-budget display on expense form
 - Phase 6 in progress — accounts settings CRUD started, including guarded delete confirmation and cascading transaction cleanup
 - Phase 6 now also includes subcategories CRUD/settings UI (create + update; inactive filtering supported via bootstrap)
+- Frontend architecture checkpoint complete on 2026-05-02 - API calls are centralized through `apiClient`, services, and stores. Components should use store hooks/actions instead of direct `fetch`.
 - This document is the source of truth for implementation planning.
 - Implementation should proceed in phases and each phase should be testable before continuing.
 

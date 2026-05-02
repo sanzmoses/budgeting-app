@@ -8,6 +8,9 @@ Multi-user budgeting app. Frontend and backend deploy independently from this si
 - `docs/implementation-plan.md` — product decisions, domain model, phase plan
 - `docs/session-handoff.md` — quick-start for resuming work
 
+Additional checkpoint:
+- `docs/service-store-refactor-checkpoint-2026-05-02.md` - frontend API/service/store architecture checkpoint
+
 ## Repo
 
 - GitHub: `https://github.com/sanzmoses/budgeting-app`
@@ -27,6 +30,19 @@ packages/shared shared code/types (future)
 docs            infrastructure and planning notes
 secrets         local secret placeholders (not committed)
 ```
+
+## Frontend API Architecture
+
+Current frontend API flow:
+
+```text
+components -> stores -> services -> apiClient -> PHP API
+```
+
+- `apps/web/src/lib/apiClient.js` is the only source file expected to call `fetch()` directly.
+- Services in `apps/web/src/services/` define endpoint wrappers.
+- Stores in `apps/web/src/stores/` own shared data, caching, invalidation, and mutations.
+- Components should use store hooks/actions for app data instead of importing services directly.
 
 ## Local development
 
