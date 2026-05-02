@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useToast } from './ToastProvider'
-import { getAccountTypeMeta } from './ui'
-import { readJsonResponse } from './http'
+import { useToast } from '../providers/ToastProvider'
+import { getAccountTypeMeta } from '../lib/ui'
+import { readJsonResponse } from '../lib/http'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 

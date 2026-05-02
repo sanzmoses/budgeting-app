@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useToast } from './ToastProvider'
+import { useToast } from '../../providers/ToastProvider'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 

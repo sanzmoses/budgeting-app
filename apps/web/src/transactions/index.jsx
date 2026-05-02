@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import EditTransactionModal from './EditTransactionModal'
-import { useToast } from './ToastProvider'
-import { getOfflineTransactionsByMonth } from './offlineTransactions'
-import { toOfflineTransactionView } from './offlineTxnView'
+import EditTransactionModal from './edit'
+import { useToast } from '../providers/ToastProvider'
+import { getOfflineTransactionsByMonth } from '../offline/transactions'
+import { toOfflineTransactionView } from '../offline/txnView'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 

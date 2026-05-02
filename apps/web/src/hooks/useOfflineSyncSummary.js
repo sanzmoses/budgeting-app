@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getPendingSyncCount } from './offlineTransactions'
+import { getPendingSyncCount } from '../offline/transactions'
 
 export function useOfflineSyncSummary(refreshKey = 0) {
   const [pendingCount, setPendingCount] = useState(0)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getAccountTypeMeta } from './ui'
-import { readJsonResponse } from './http'
+import { getAccountTypeMeta } from '../../lib/ui'
+import { readJsonResponse } from '../../lib/http'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 

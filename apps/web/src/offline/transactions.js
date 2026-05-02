@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid'
-import { offlineDb } from './offlineDb'
+import { offlineDb } from './db'
 
 offlineDb.version(2).stores({
   meta: '&key',

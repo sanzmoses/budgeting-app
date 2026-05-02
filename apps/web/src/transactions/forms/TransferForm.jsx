@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useToast } from './ToastProvider'
-import { queueOfflineTransactionCreate } from './offlineTransactions'
+import { useToast } from '../../providers/ToastProvider'
+import { queueOfflineTransactionCreate } from '../../offline/transactions'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -8,12 +8,13 @@ function today() {
   return new Date().toISOString().split('T')[0]
 }
 
-export default function IncomeForm({ token, bootstrap, onCreated }) {
+export default function TransferForm({ token, bootstrap, onCreated }) {
   const { showToast } = useToast()
   const [date, setDate] = useState(today())
-  const [accountId, setAccountId] = useState('')
-  const [sourceId, setSourceId] = useState('')
+  const [fromId, setFromId] = useState('')
+  const [toId, setToId] = useState('')
   const [amount, setAmount] = useState('')
+  const [label, setLabel] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -23,6 +24,14 @@ export default function IncomeForm({ token, bootstrap, onCreated }) {
     e.preventDefault()
     setError('')
     setSuccess('')
+
+    if (fromId === toId) {
+      const nextError = 'Source and destination accounts must be different'
+      setError(nextError)
+      showToast({ tone: 'warning', message: nextError })
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -33,41 +42,45 @@ export default function IncomeForm({ token, bootstrap, onCreated }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          type: 'income',
+          type: 'transfer',
           transaction_date: date,
-          account_id: Number(accountId),
-          income_source_id: Number(sourceId),
+          from_account_id: Number(fromId),
+          to_account_id: Number(toId),
           amount: parseFloat(amount),
+          transfer_label: label || undefined,
           description: description || undefined,
         }),
       })
       const data = await res.json()
       if (!res.ok) {
-        const nextError = data.error || 'Failed to save income'
+        const nextError = data.error || 'Failed to save transfer'
         setError(nextError)
         showToast({ tone: 'error', message: nextError })
         return
       }
-      const nextMessage = `Income saved (ID ${data.id})`
+      const nextMessage = `Transfer saved (ID ${data.id})`
       setSuccess(nextMessage)
       showToast({ tone: 'success', message: nextMessage })
       setAmount('')
+      setLabel('')
       setDescription('')
       onCreated?.()
     } catch {
       try {
         await queueOfflineTransactionCreate({
-          type: 'income',
+          type: 'transfer',
           transaction_date: date,
-          account_id: Number(accountId),
-          income_source_id: Number(sourceId),
+          from_account_id: Number(fromId),
+          to_account_id: Number(toId),
           amount: parseFloat(amount),
+          transfer_label: label || '',
           description: description || '',
         })
-        const nextMessage = 'Income saved locally. It will sync when connection returns.'
+        const nextMessage = 'Transfer saved locally. It will sync when connection returns.'
         setSuccess(nextMessage)
         showToast({ tone: 'warning', message: nextMessage })
         setAmount('')
+        setLabel('')
         setDescription('')
         onCreated?.()
       } catch {
@@ -103,24 +116,36 @@ export default function IncomeForm({ token, bootstrap, onCreated }) {
         </div>
       </div>
 
-      <div className="form-group">
-        <label>Destination Account</label>
-        <select value={accountId} onChange={e => setAccountId(e.target.value)} required disabled={loading}>
-          <option value="">— select account —</option>
-          {bootstrap.accounts.map(a => (
-            <option key={a.id} value={a.id}>{a.name}</option>
-          ))}
-        </select>
+      <div className="form-row">
+        <div className="form-group">
+          <label>From Account</label>
+          <select value={fromId} onChange={e => setFromId(e.target.value)} required disabled={loading}>
+            <option value="">— from —</option>
+            {bootstrap.accounts.map(a => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>To Account</label>
+          <select value={toId} onChange={e => setToId(e.target.value)} required disabled={loading}>
+            <option value="">— to —</option>
+            {bootstrap.accounts.map(a => (
+              <option key={a.id} value={a.id} disabled={a.id === Number(fromId)}>{a.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="form-group">
-        <label>Income Source</label>
-        <select value={sourceId} onChange={e => setSourceId(e.target.value)} required disabled={loading}>
-          <option value="">— select source —</option>
-          {bootstrap.income_sources.map(s => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+        <label>Label <span className="optional">(optional — e.g. Travel, Emergency)</span></label>
+        <input
+          type="text"
+          placeholder="Label for this savings movement…"
+          value={label}
+          onChange={e => setLabel(e.target.value)}
+          disabled={loading}
+        />
       </div>
 
       <div className="form-group">
@@ -139,10 +164,10 @@ export default function IncomeForm({ token, bootstrap, onCreated }) {
 
       <button
         type="submit"
-        className="btn-submit btn-income"
-        disabled={loading || !date || !accountId || !sourceId || !amount}
+        className="btn-submit btn-transfer"
+        disabled={loading || !date || !fromId || !toId || !amount}
       >
-        {loading ? 'Saving…' : 'Save Income'}
+        {loading ? 'Saving…' : 'Save Transfer'}
       </button>
     </form>
   )

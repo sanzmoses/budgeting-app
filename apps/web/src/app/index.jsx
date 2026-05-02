@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import LoginForm from './LoginForm'
-import AppShell  from './AppShell'
-import { ToastProvider } from './ToastProvider'
-import './App.css'
+import LoginForm from '../login'
+import AppShell  from '../layout'
+import { ToastProvider } from '../providers/ToastProvider'
+import './index.css'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 const TOKEN_KEY    = 'budget_token'

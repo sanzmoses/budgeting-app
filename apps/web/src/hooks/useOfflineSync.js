@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { getSyncQueueCounts, retryFailedSyncQueueItems, syncPendingTransactionCreates } from './offlineSync'
+import { getSyncQueueCounts, retryFailedSyncQueueItems, syncPendingTransactionCreates } from '../offline/sync'
 
 export function useOfflineSync({ token, enabled, refreshKey = 0, onSyncComplete } = {}) {
   const runningRef = useRef(false)

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { getBootstrapCache, getLastBootstrapSyncAt, saveBootstrapCache } from './offlineDb'
-import { useNetworkStatus } from './useNetworkStatus'
-import { useOfflineSync } from './useOfflineSync'
+import { getBootstrapCache, getLastBootstrapSyncAt, saveBootstrapCache } from '../offline/db'
+import { useNetworkStatus } from '../hooks/useNetworkStatus'
+import { useOfflineSync } from '../hooks/useOfflineSync'
 import {
   PlusCircle,
   TrendingUp,
@@ -16,16 +16,16 @@ import {
   LogOut,
   ChevronRight,
 } from 'lucide-react'
-import ExpenseForm from './ExpenseForm'
-import IncomeForm from './IncomeForm'
-import TransferForm from './TransferForm'
-import TransactionList from './TransactionList'
-import AccountBalances from './AccountBalances'
-import BudgetManager from './BudgetManager'
-import AccountsManager from './AccountsManager'
-import SubcategoriesManager from './SubcategoriesManager'
-import ReportsPage from './ReportsPage'
-import logoUrl from './assets/logo-budgeting-app.svg'
+import ExpenseForm from '../transactions/forms/ExpenseForm'
+import IncomeForm from '../transactions/forms/IncomeForm'
+import TransferForm from '../transactions/forms/TransferForm'
+import TransactionList from '../transactions'
+import AccountBalances from '../accounts/components/Balances'
+import BudgetManager from '../budgets'
+import AccountsManager from '../accounts'
+import SubcategoriesManager from '../settings/subcategories'
+import ReportsPage from '../reports'
+import logoUrl from '../assets/logo-budgeting-app.svg'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 

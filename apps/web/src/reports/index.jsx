@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
-import { useToast } from './ToastProvider'
-import { readJsonResponse } from './http'
+import { useToast } from '../providers/ToastProvider'
+import { readJsonResponse } from '../lib/http'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
