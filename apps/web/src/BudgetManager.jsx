@@ -79,8 +79,8 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
     setMessage('')
 
     const existing = budgetsByCategoryId.get(categoryId)
-    const method = existing ? 'PUT' : 'POST'
-    const url = existing
+    const method = existing?.id ? 'PUT' : 'POST'
+    const url = existing?.id
       ? `${API_BASE_URL}/budgets/${existing.id}`
       : `${API_BASE_URL}/budgets`
 
@@ -187,7 +187,7 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
                       onClick={() => saveBudget(category.id)}
                       disabled={savingCategoryId === category.id}
                     >
-                      {savingCategoryId === category.id ? 'Saving…' : budget ? 'Update' : 'Set Budget'}
+                      {savingCategoryId === category.id ? 'Saving…' : budget?.id ? 'Update' : 'Set Budget'}
                     </button>
                   </div>
                 </div>
