@@ -108,14 +108,22 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
 
       setData((prev) => {
         if (!prev) return prev
-        const others = prev.budgets.filter((budget) => budget.category_id !== categoryId)
+        const others = prev.budgets.filter((b) => b.category_id !== categoryId)
+        const spent = Number(existing?.spent_amount || 0)
+        const merged = {
+          ...existing,
+          id: payload.id,
+          amount: payload.amount,
+          remaining_amount: Math.round((payload.amount - spent) * 100) / 100,
+          has_budget: true,
+        }
         return {
           ...prev,
-          budgets: [...others, payload].sort((a, b) => a.category_name.localeCompare(b.category_name)),
+          budgets: [...others, merged].sort((a, b) => a.category_name.localeCompare(b.category_name)),
         }
       })
       setDrafts((prev) => ({ ...prev, [categoryId]: String(payload.amount) }))
-      const nextMessage = `Saved budget for ${payload.category_name}`
+      const nextMessage = `Saved budget for ${existing?.category_name ?? String(categoryId)}`
       setMessage(nextMessage)
       showToast({ tone: 'success', message: nextMessage })
       onChanged?.()
