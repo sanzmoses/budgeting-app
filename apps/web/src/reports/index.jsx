@@ -1,9 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
-import { useToast } from '../providers/ToastProvider'
-import { readJsonResponse } from '../lib/http'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { useReportStore } from '../stores/reportStore'
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -27,70 +24,16 @@ function compactFmt(amount) {
   })
 }
 
-export default function ReportsPage({ token, onAddExpense }) {
-  const { showToast } = useToast()
-  const [mode, setMode] = useState('monthly')
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth())
-  const [selectedDate, setSelectedDate] = useState(currentDate())
-  const [monthlySummary, setMonthlySummary] = useState(null)
-  const [dailySummary, setDailySummary] = useState(null)
-  const [breakdown, setBreakdown] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+export default function ReportsPage({ onAddExpense }) {
+  const [mode] = useState('monthly')
+  const [selectedMonth] = useState(currentMonth())
+  const [selectedDate] = useState(currentDate())
 
-  const monthlyQuery = useMemo(() => {
-    const params = new URLSearchParams({ period: 'monthly', month: selectedMonth })
-    return params.toString()
-  }, [selectedMonth])
-
-  const dailyQuery = useMemo(() => {
-    const params = new URLSearchParams({ period: 'daily', date: selectedDate })
-    return params.toString()
-  }, [selectedDate])
-
-  const breakdownQuery = useMemo(() => {
-    const params = new URLSearchParams({ period: mode })
-    if (mode === 'daily') params.set('date', selectedDate)
-    if (mode === 'monthly') params.set('month', selectedMonth)
-    return params.toString()
-  }, [mode, selectedDate, selectedMonth])
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError('')
-
-    Promise.all([
-      fetch(`${API_BASE_URL}/reports/summary?${monthlyQuery}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((res) => readJsonResponse(res, 'Failed to load monthly summary')),
-      fetch(`${API_BASE_URL}/reports/summary?${dailyQuery}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((res) => readJsonResponse(res, 'Failed to load daily summary')),
-      fetch(`${API_BASE_URL}/reports/category-breakdown?${breakdownQuery}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((res) => readJsonResponse(res, 'Failed to load expense breakdown')),
-    ])
-      .then(([monthlyPayload, dailyPayload, breakdownPayload]) => {
-        if (cancelled) return
-        setMonthlySummary(monthlyPayload)
-        setDailySummary(dailyPayload)
-        setBreakdown(breakdownPayload)
-      })
-      .catch((err) => {
-        if (cancelled) return
-        const nextError = err.message || 'Could not load reports'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [token, monthlyQuery, dailyQuery, breakdownQuery, showToast])
+  const { monthlySummary, dailySummary, breakdown, loading, error } = useReportStore(
+    selectedMonth,
+    selectedDate,
+    mode
+  )
 
   const expenseCards = breakdown?.breakdown || []
 

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { useMemo, useState } from 'react'
+import { useBootstrapStore } from '../../stores/bootstrapStore'
+import { useSubcategoryStore } from '../../stores/subcategoryStore'
 
 function blankForm() {
   return {
@@ -11,10 +11,13 @@ function blankForm() {
   }
 }
 
-export default function SubcategoriesManager({ token, bootstrap, refreshKey, onChanged }) {
-  const [subcategories, setSubcategories] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+export default function SubcategoriesManager({ onChanged }) {
+  const { data: bootstrap } = useBootstrapStore()
+  const {
+    subcategories, loading, error, refresh,
+    createSubcategory, updateSubcategory,
+  } = useSubcategoryStore()
+  const [formError, setFormError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState(blankForm())
   const [editingId, setEditingId] = useState(null)
@@ -26,27 +29,6 @@ export default function SubcategoriesManager({ token, bootstrap, refreshKey, onC
     ;(bootstrap?.categories || []).forEach((category) => map.set(category.id, category))
     return map
   }, [bootstrap])
-
-  useEffect(() => {
-    loadSubcategories()
-  }, [token, refreshKey])
-
-  async function loadSubcategories() {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch(`${API_BASE_URL}/subcategories`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const payload = await res.json()
-      if (!res.ok) throw new Error(payload.error || 'Failed to load subcategories')
-      setSubcategories(payload.subcategories || [])
-    } catch (err) {
-      setError(err.message || 'Could not load subcategories')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   function updateForm(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -65,14 +47,14 @@ export default function SubcategoriesManager({ token, bootstrap, refreshKey, onC
       is_active: Boolean(item.is_active),
       sort_order: String(item.sort_order ?? 0),
     })
-    setError('')
+    setFormError('')
     setMessage('')
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setSaving(true)
-    setError('')
+    setFormError('')
     setMessage('')
 
     try {
@@ -83,38 +65,25 @@ export default function SubcategoriesManager({ token, bootstrap, refreshKey, onC
         sort_order: Number(form.sort_order || 0),
       }
 
-      const url = editingId ? `${API_BASE_URL}/subcategories/${editingId}` : `${API_BASE_URL}/subcategories`
-      const method = editingId ? 'PUT' : 'POST'
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || 'Failed to save subcategory')
-        return
-      }
+      const data = editingId
+        ? await updateSubcategory(editingId, payload)
+        : await createSubcategory(payload)
 
       setMessage(editingId ? `Updated ${data.name}` : `Created ${data.name}`)
       resetForm()
-      await loadSubcategories()
-      onChanged?.()
-    } catch {
-      setError('Could not reach the server')
+      if (onChanged) onChanged()
+      else refresh()
+    } catch (err) {
+      setFormError(err.message || 'Could not reach the server')
     } finally {
       setSaving(false)
     }
   }
 
   const filteredSubcategories = filterCategoryId
-    ? subcategories.filter((item) => item.category_id === Number(filterCategoryId))
-    : subcategories
+    ? (subcategories || []).filter((item) => item.category_id === Number(filterCategoryId))
+    : (subcategories || [])
+  const displayError = error || formError
 
   if (!bootstrap) return <p className="form-loading">Loading categories…</p>
 
@@ -177,7 +146,7 @@ export default function SubcategoriesManager({ token, bootstrap, refreshKey, onC
           <span>Subcategory is active</span>
         </label>
 
-        {error && <p className="form-error">{error}</p>}
+        {displayError && <p className="form-error">{displayError}</p>}
         {message && <p className="form-success">{message}</p>}
 
         <div className="modal-actions settings-actions">

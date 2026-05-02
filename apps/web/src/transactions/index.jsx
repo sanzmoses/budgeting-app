@@ -1,10 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import EditTransactionModal from './edit'
 import { useToast } from '../providers/ToastProvider'
-import { getOfflineTransactionsByMonth } from '../offline/transactions'
-import { toOfflineTransactionView } from '../offline/txnView'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { useBootstrapStore } from '../stores/bootstrapStore'
+import { useTransactionActions, useTransactionStore } from '../stores/transactionStore'
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -43,83 +41,38 @@ function txnSub(t) {
     if (t.description) parts.push(t.description)
     return parts.join(' · ') || null
   }
-  if (t.type === 'transfer' && t.description) {
-    return t.description
-  }
+  if (t.type === 'transfer' && t.description) return t.description
   return null
 }
 
-export default function TransactionList({ token, bootstrap, refreshKey, onChanged }) {
+export default function TransactionList({ onChanged }) {
   const { showToast } = useToast()
+  const { data: bootstrap } = useBootstrapStore()
+  const { deleteTransaction } = useTransactionActions()
   const [month, setMonth] = useState(currentMonth())
   const [filterType, setFilterType] = useState('')
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { data, loading, error, refresh } = useTransactionStore(month, filterType)
+
+  const [deleteError, setDeleteError] = useState('')
   const [deleting, setDeleting] = useState(null)
   const [editTxn, setEditTxn] = useState(null)
-  const [listKey, setListKey] = useState(0)
 
   function reload() {
-    setListKey(k => k + 1)
+    refresh()
     onChanged?.()
   }
-
-  useEffect(() => {
-    setLoading(true)
-    setError('')
-    const params = new URLSearchParams({ month })
-    if (filterType) params.set('type', filterType)
-
-    fetch(`${API_BASE_URL}/transactions?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (r) => {
-        const payload = await r.json()
-        if (!r.ok) throw new Error(payload.error || 'Could not load transactions')
-        setData(payload)
-      })
-      .catch(async (err) => {
-        const offlineRows = await getOfflineTransactionsByMonth(month, filterType)
-
-        if (offlineRows.length > 0) {
-          setData({
-            transactions: offlineRows.map(row => toOfflineTransactionView(row, bootstrap)),
-            count: offlineRows.length,
-            offlineOnly: true,
-          })
-          setError('Showing locally saved transactions while offline.')
-          showToast({ tone: 'warning', message: 'Showing locally saved transactions while offline.' })
-          return
-        }
-
-        const nextError = err.message || 'Could not load transactions'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-      })
-      .finally(() => setLoading(false))
-  }, [token, month, filterType, refreshKey, listKey])
 
   async function handleDelete(txn) {
     if (!window.confirm(`Delete this ${txn.type} of ${fmt(txn.amount)}? This cannot be undone.`)) return
     setDeleting(txn.id)
+    setDeleteError('')
     try {
-      const res = await fetch(`${API_BASE_URL}/transactions/${txn.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (res.ok || res.status === 204) {
-        showToast({ tone: 'success', message: `${txn.type[0].toUpperCase() + txn.type.slice(1)} deleted.` })
-        reload()
-      } else {
-        const d = await res.json().catch(() => ({}))
-        const nextError = d.error || 'Failed to delete transaction'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-      }
-    } catch {
-      const nextError = 'Could not reach the server'
-      setError(nextError)
+      await deleteTransaction(txn.id)
+      showToast({ tone: 'success', message: `${txn.type[0].toUpperCase() + txn.type.slice(1)} deleted.` })
+      reload()
+    } catch (err) {
+      const nextError = err.message || 'Failed to delete transaction'
+      setDeleteError(nextError)
       showToast({ tone: 'error', message: nextError })
     } finally {
       setDeleting(null)
@@ -136,6 +89,8 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
     showToast({ tone: 'success', message: `${updatedTxn.type[0].toUpperCase() + updatedTxn.type.slice(1)} updated.` })
     reload()
   }
+
+  const displayError = error || deleteError
 
   return (
     <div className="txn-list-container">
@@ -155,7 +110,10 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
       </div>
 
       {loading && <p className="form-loading">Loading…</p>}
-      {error && <p className="form-error">{error}</p>}
+      {displayError && <p className="form-error">{displayError}</p>}
+      {data?.offlineOnly && !loading && (
+        <p className="form-error">Showing locally saved transactions while offline.</p>
+      )}
 
       {!loading && data && data.transactions.length === 0 && (
         <p className="txn-empty">No transactions for {month}{filterType ? ` (${filterType})` : ''}.</p>
@@ -212,8 +170,6 @@ export default function TransactionList({ token, bootstrap, refreshKey, onChange
       {editTxn && bootstrap && (
         <EditTransactionModal
           txn={editTxn}
-          bootstrap={bootstrap}
-          token={token}
           onSaved={handleEditSaved}
           onClose={() => setEditTxn(null)}
         />

@@ -1,6 +1,5 @@
 import { offlineDb } from './db'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { apiClient } from '../lib/apiClient'
 
 function serializeQueuePayload(payload) {
   return {
@@ -36,7 +35,7 @@ async function markTransactionSynced(localId, serverRecord) {
   })
 }
 
-export async function syncPendingTransactionCreates(token) {
+export async function syncPendingTransactionCreates() {
   const queueItems = await offlineDb.syncQueue
     .where('status')
     .equals('pending')
@@ -46,10 +45,7 @@ export async function syncPendingTransactionCreates(token) {
     .filter(item => item.entityType === 'transaction' && item.action === 'create')
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
 
-  const results = {
-    synced: 0,
-    failed: 0,
-  }
+  const results = { synced: 0, failed: 0 }
 
   for (const item of createItems) {
     await markQueueItem(item.id, {
@@ -60,21 +56,7 @@ export async function syncPendingTransactionCreates(token) {
     })
 
     try {
-      const response = await fetch(`${API_BASE_URL}/transactions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(serializeQueuePayload(item.payload)),
-      })
-
-      const payload = await response.json().catch(() => ({}))
-
-      if (!response.ok) {
-        throw new Error(payload.error || 'Sync failed')
-      }
-
+      const payload = await apiClient.post('/transactions', serializeQueuePayload(item.payload))
       await markTransactionSynced(item.entityId, payload)
       await removeQueueItem(item.id)
       results.synced += 1
@@ -93,8 +75,7 @@ export async function syncPendingTransactionCreates(token) {
 export async function getSyncQueueCounts() {
   const pending = await offlineDb.syncQueue.where('status').equals('pending').count()
   const syncing = await offlineDb.syncQueue.where('status').equals('syncing').count()
-  const failed = await offlineDb.syncQueue.where('status').equals('failed').count()
-
+  const failed  = await offlineDb.syncQueue.where('status').equals('failed').count()
   return { pending, syncing, failed }
 }
 

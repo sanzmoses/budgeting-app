@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useToast } from '../../providers/ToastProvider'
+import { useBootstrapStore } from '../../stores/bootstrapStore'
+import { useTransactionActions } from '../../stores/transactionStore'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
-
-export default function EditTransactionModal({ txn, bootstrap, token, onSaved, onClose }) {
+export default function EditTransactionModal({ txn, onSaved, onClose }) {
   const { showToast } = useToast()
+  const { data: bootstrap } = useBootstrapStore()
+  const { updateTransaction } = useTransactionActions()
   const type = txn.type
 
   const [date, setDate] = useState(txn.transaction_date)
@@ -67,25 +69,12 @@ export default function EditTransactionModal({ txn, bootstrap, token, onSaved, o
         body.transfer_label = transferLabel || undefined
       }
 
-      const res = await fetch(`${API_BASE_URL}/transactions/${txn.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        const nextError = data.error || 'Failed to save changes'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-        return
-      }
+      const data = await updateTransaction(txn.id, body)
       onSaved(data)
-    } catch {
-      setError('Could not reach the server')
-      showToast({ tone: 'error', message: 'Could not reach the server' })
+    } catch (err) {
+      const nextError = err.message || 'Could not reach the server'
+      setError(nextError)
+      showToast({ tone: 'error', message: nextError })
     } finally {
       setLoading(false)
     }
@@ -95,6 +84,8 @@ export default function EditTransactionModal({ txn, bootstrap, token, onSaved, o
     (type === 'expense' && (!accountId || !categoryId || !subcategoryId)) ||
     (type === 'income' && (!accountId || !sourceId)) ||
     (type === 'transfer' && (!fromId || !toId))
+
+  if (!bootstrap) return null
 
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>

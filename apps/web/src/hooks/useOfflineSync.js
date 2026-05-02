@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { getSyncQueueCounts, retryFailedSyncQueueItems, syncPendingTransactionCreates } from '../offline/sync'
 
-export function useOfflineSync({ token, enabled, refreshKey = 0, onSyncComplete } = {}) {
+export function useOfflineSync({ enabled, refreshKey = 0, onSyncComplete } = {}) {
   const runningRef = useRef(false)
   const [summary, setSummary] = useState({ pending: 0, syncing: 0, failed: 0 })
 
@@ -15,22 +15,19 @@ export function useOfflineSync({ token, enabled, refreshKey = 0, onSyncComplete 
 
     loadCounts()
 
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [refreshKey])
 
   useEffect(() => {
-    if (!enabled || !token || runningRef.current) return
+    if (!enabled || runningRef.current) return
 
     let cancelled = false
 
     async function runSync() {
       runningRef.current = true
-
       try {
         await retryFailedSyncQueueItems()
-        const result = await syncPendingTransactionCreates(token)
+        const result = await syncPendingTransactionCreates()
         const counts = await getSyncQueueCounts()
         if (!cancelled) {
           setSummary(counts)
@@ -43,10 +40,8 @@ export function useOfflineSync({ token, enabled, refreshKey = 0, onSyncComplete 
 
     runSync()
 
-    return () => {
-      cancelled = true
-    }
-  }, [enabled, token, refreshKey, onSyncComplete])
+    return () => { cancelled = true }
+  }, [enabled, refreshKey, onSyncComplete])
 
   return summary
 }

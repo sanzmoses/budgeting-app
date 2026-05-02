@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useToast } from '../../providers/ToastProvider'
 import { queueOfflineTransactionCreate } from '../../offline/transactions'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { useBudgetSummaryStore } from '../../stores/budgetStore'
+import { useBootstrapStore } from '../../stores/bootstrapStore'
+import { useTransactionActions } from '../../stores/transactionStore'
 
 function today() {
   return new Date().toISOString().split('T')[0]
@@ -19,8 +20,10 @@ function fmt(amount) {
   })
 }
 
-export default function ExpenseForm({ token, bootstrap, onCreated }) {
+export default function ExpenseForm({ onCreated }) {
   const { showToast } = useToast()
+  const { data: bootstrap } = useBootstrapStore()
+  const { createTransaction } = useTransactionActions()
   const [date, setDate] = useState(today())
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -31,33 +34,12 @@ export default function ExpenseForm({ token, bootstrap, onCreated }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [budgetInfo, setBudgetInfo] = useState(null)
-  const [budgetLoading, setBudgetLoading] = useState(false)
-
   const subcategories = bootstrap
     ? bootstrap.subcategories.filter(s => s.category_id === Number(categoryId))
     : []
 
   const activeMonth = useMemo(() => monthFromDate(date), [date])
-
-  useEffect(() => {
-    if (!categoryId) {
-      setBudgetInfo(null)
-      return
-    }
-
-    setBudgetLoading(true)
-    fetch(`${API_BASE_URL}/budgets/summary?month=${activeMonth}&category_id=${categoryId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (res) => {
-        const payload = await res.json()
-        if (!res.ok) throw new Error(payload.error || 'Failed to load budget')
-        setBudgetInfo(payload)
-      })
-      .catch(() => setBudgetInfo(null))
-      .finally(() => setBudgetLoading(false))
-  }, [token, activeMonth, categoryId])
+  const { data: budgetInfo, loading: budgetLoading } = useBudgetSummaryStore(activeMonth, categoryId)
 
   function handleCategoryChange(e) {
     setCategoryId(e.target.value)
@@ -70,31 +52,19 @@ export default function ExpenseForm({ token, bootstrap, onCreated }) {
     setSuccess('')
     setLoading(true)
 
+    const payload = {
+      type: 'expense',
+      transaction_date: date,
+      account_id: Number(accountId),
+      category_id: Number(categoryId),
+      subcategory_id: Number(subcategoryId),
+      place_id: placeId ? Number(placeId) : undefined,
+      amount: parseFloat(amount),
+      description: description || undefined,
+    }
+
     try {
-      const res = await fetch(`${API_BASE_URL}/transactions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          type: 'expense',
-          transaction_date: date,
-          account_id: Number(accountId),
-          category_id: Number(categoryId),
-          subcategory_id: Number(subcategoryId),
-          place_id: placeId ? Number(placeId) : undefined,
-          amount: parseFloat(amount),
-          description: description || undefined,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        const nextError = data.error || 'Failed to save expense'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-        return
-      }
+      const data = await createTransaction(payload)
       const nextMessage = `Expense saved (ID ${data.id})`
       setSuccess(nextMessage)
       showToast({ tone: 'success', message: nextMessage })
@@ -102,16 +72,18 @@ export default function ExpenseForm({ token, bootstrap, onCreated }) {
       setDescription('')
       setPlaceId('')
       onCreated?.()
-    } catch {
+    } catch (err) {
+      if (err.status) {
+        const nextError = err.message || 'Failed to save expense'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
+        return
+      }
+
       try {
         await queueOfflineTransactionCreate({
-          type: 'expense',
-          transaction_date: date,
-          account_id: Number(accountId),
-          category_id: Number(categoryId),
-          subcategory_id: Number(subcategoryId),
+          ...payload,
           place_id: placeId ? Number(placeId) : null,
-          amount: parseFloat(amount),
           description: description || '',
         })
         const nextMessage = 'Expense saved locally. It will sync when connection returns.'

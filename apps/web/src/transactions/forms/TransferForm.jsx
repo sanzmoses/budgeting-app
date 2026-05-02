@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { useToast } from '../../providers/ToastProvider'
 import { queueOfflineTransactionCreate } from '../../offline/transactions'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { useBootstrapStore } from '../../stores/bootstrapStore'
+import { useTransactionActions } from '../../stores/transactionStore'
 
 function today() {
   return new Date().toISOString().split('T')[0]
 }
 
-export default function TransferForm({ token, bootstrap, onCreated }) {
+export default function TransferForm({ onCreated }) {
   const { showToast } = useToast()
+  const { data: bootstrap } = useBootstrapStore()
+  const { createTransaction } = useTransactionActions()
   const [date, setDate] = useState(today())
   const [fromId, setFromId] = useState('')
   const [toId, setToId] = useState('')
@@ -34,30 +36,18 @@ export default function TransferForm({ token, bootstrap, onCreated }) {
 
     setLoading(true)
 
+    const payload = {
+      type: 'transfer',
+      transaction_date: date,
+      from_account_id: Number(fromId),
+      to_account_id: Number(toId),
+      amount: parseFloat(amount),
+      transfer_label: label || undefined,
+      description: description || undefined,
+    }
+
     try {
-      const res = await fetch(`${API_BASE_URL}/transactions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          type: 'transfer',
-          transaction_date: date,
-          from_account_id: Number(fromId),
-          to_account_id: Number(toId),
-          amount: parseFloat(amount),
-          transfer_label: label || undefined,
-          description: description || undefined,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        const nextError = data.error || 'Failed to save transfer'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-        return
-      }
+      const data = await createTransaction(payload)
       const nextMessage = `Transfer saved (ID ${data.id})`
       setSuccess(nextMessage)
       showToast({ tone: 'success', message: nextMessage })
@@ -65,14 +55,17 @@ export default function TransferForm({ token, bootstrap, onCreated }) {
       setLabel('')
       setDescription('')
       onCreated?.()
-    } catch {
+    } catch (err) {
+      if (err.status) {
+        const nextError = err.message || 'Failed to save transfer'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
+        return
+      }
+
       try {
         await queueOfflineTransactionCreate({
-          type: 'transfer',
-          transaction_date: date,
-          from_account_id: Number(fromId),
-          to_account_id: Number(toId),
-          amount: parseFloat(amount),
+          ...payload,
           transfer_label: label || '',
           description: description || '',
         })

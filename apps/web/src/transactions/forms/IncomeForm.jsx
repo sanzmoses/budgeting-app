@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { useToast } from '../../providers/ToastProvider'
 import { queueOfflineTransactionCreate } from '../../offline/transactions'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { useBootstrapStore } from '../../stores/bootstrapStore'
+import { useTransactionActions } from '../../stores/transactionStore'
 
 function today() {
   return new Date().toISOString().split('T')[0]
 }
 
-export default function IncomeForm({ token, bootstrap, onCreated }) {
+export default function IncomeForm({ onCreated }) {
   const { showToast } = useToast()
+  const { data: bootstrap } = useBootstrapStore()
+  const { createTransaction } = useTransactionActions()
   const [date, setDate] = useState(today())
   const [accountId, setAccountId] = useState('')
   const [sourceId, setSourceId] = useState('')
@@ -25,43 +27,34 @@ export default function IncomeForm({ token, bootstrap, onCreated }) {
     setSuccess('')
     setLoading(true)
 
+    const payload = {
+      type: 'income',
+      transaction_date: date,
+      account_id: Number(accountId),
+      income_source_id: Number(sourceId),
+      amount: parseFloat(amount),
+      description: description || undefined,
+    }
+
     try {
-      const res = await fetch(`${API_BASE_URL}/transactions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          type: 'income',
-          transaction_date: date,
-          account_id: Number(accountId),
-          income_source_id: Number(sourceId),
-          amount: parseFloat(amount),
-          description: description || undefined,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        const nextError = data.error || 'Failed to save income'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-        return
-      }
+      const data = await createTransaction(payload)
       const nextMessage = `Income saved (ID ${data.id})`
       setSuccess(nextMessage)
       showToast({ tone: 'success', message: nextMessage })
       setAmount('')
       setDescription('')
       onCreated?.()
-    } catch {
+    } catch (err) {
+      if (err.status) {
+        const nextError = err.message || 'Failed to save income'
+        setError(nextError)
+        showToast({ tone: 'error', message: nextError })
+        return
+      }
+
       try {
         await queueOfflineTransactionCreate({
-          type: 'income',
-          transaction_date: date,
-          account_id: Number(accountId),
-          income_source_id: Number(sourceId),
-          amount: parseFloat(amount),
+          ...payload,
           description: description || '',
         })
         const nextMessage = 'Income saved locally. It will sync when connection returns.'

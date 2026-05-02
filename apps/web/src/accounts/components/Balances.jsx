@@ -1,8 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { getAccountTypeMeta } from '../../lib/ui'
-import { readJsonResponse } from '../../lib/http'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { useBalancesStore } from '../../stores/accountStore'
 
 function fmt(amount) {
   return Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -43,22 +41,8 @@ function BalanceSection({ title, items, total, emptyMessage }) {
   )
 }
 
-export default function AccountBalances({ token, refreshKey }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    setLoading(true)
-    setError('')
-    fetch(`${API_BASE_URL}/accounts/balances`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => readJsonResponse(r, 'Could not load balances'))
-      .then((payload) => setData(payload))
-      .catch((err) => setError(err.message || 'Could not load balances'))
-      .finally(() => setLoading(false))
-  }, [token, refreshKey])
+export default function AccountBalances() {
+  const { data, loading, error } = useBalancesStore()
 
   const grouped = useMemo(() => {
     const balances = data?.accounts || []

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import logoUrl from '../assets/logo-budgeting-app.svg'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { authService } from '../services/authService'
 
 export default function LoginForm({ onLogin }) {
   const [username, setUsername] = useState('')
@@ -15,21 +14,10 @@ export default function LoginForm({ onLogin }) {
     setLoading(true)
 
     try {
-      const res  = await fetch(`${API_BASE_URL}/auth/login`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ username, password }),
-      })
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error || 'Login failed')
-        return
-      }
-
+      const data = await authService.login(username, password)
       onLogin(data.token, data.user)
-    } catch {
-      setError('Could not reach the server. Is the API running?')
+    } catch (err) {
+      setError(err.message || 'Could not reach the server. Is the API running?')
     } finally {
       setLoading(false)
     }

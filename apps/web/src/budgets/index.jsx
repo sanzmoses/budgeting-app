@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../providers/ToastProvider'
-import { readJsonResponse } from '../lib/http'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { useBootstrapStore } from '../stores/bootstrapStore'
+import { useBudgetStore } from '../stores/budgetStore'
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -15,40 +14,25 @@ function fmt(amount) {
   })
 }
 
-export default function BudgetManager({ token, bootstrap, refreshKey, onChanged }) {
+export default function BudgetManager({ onChanged }) {
   const { showToast } = useToast()
+  const { data: bootstrap } = useBootstrapStore()
   const [month, setMonth] = useState(currentMonth())
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { data, loading, error, saveBudget: persistBudget } = useBudgetStore(month)
+
   const [savingCategoryId, setSavingCategoryId] = useState(null)
   const [drafts, setDrafts] = useState({})
+  const [saveError, setSaveError] = useState('')
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    setLoading(true)
-    setError('')
-    setMessage('')
-
-    fetch(`${API_BASE_URL}/budgets?month=${month}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    if (!data?.budgets) return
+    const nextDrafts = {}
+    data.budgets.forEach((b) => {
+      nextDrafts[b.category_id] = String(b.amount)
     })
-      .then((res) => readJsonResponse(res, 'Failed to load budgets'))
-      .then((payload) => {
-        setData(payload)
-        const nextDrafts = {}
-        payload.budgets.forEach((budget) => {
-          nextDrafts[budget.category_id] = String(budget.amount)
-        })
-        setDrafts(nextDrafts)
-      })
-      .catch((err) => {
-        const nextError = err.message || 'Could not load budgets'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-      })
-      .finally(() => setLoading(false))
-  }, [token, month, refreshKey])
+    setDrafts(nextDrafts)
+  }, [data])
 
   const budgetsByCategoryId = useMemo(() => {
     const map = new Map()
@@ -63,73 +47,34 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
     return data.budgets.reduce((sum, budget) => sum + Number(budget.amount || 0), 0)
   }, [data])
 
-  async function saveBudget(categoryId) {
+  async function handleSaveBudget(categoryId) {
     const raw = drafts[categoryId] ?? ''
     const amount = Number(raw)
 
     if (raw === '' || Number.isNaN(amount) || amount < 0) {
       const nextError = 'Budget amount must be 0 or greater'
-      setError(nextError)
+      setSaveError(nextError)
       showToast({ tone: 'warning', message: nextError })
       return
     }
 
     setSavingCategoryId(categoryId)
-    setError('')
+    setSaveError('')
     setMessage('')
 
     const existing = budgetsByCategoryId.get(categoryId)
-    const method = existing?.id ? 'PUT' : 'POST'
-    const url = existing?.id
-      ? `${API_BASE_URL}/budgets/${existing.id}`
-      : `${API_BASE_URL}/budgets`
 
     try {
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          month,
-          category_id: categoryId,
-          amount,
-        }),
-      })
+      await persistBudget(existing?.id, { month, category_id: categoryId, amount })
 
-      const payload = await res.json()
-      if (!res.ok) {
-        const nextError = payload.error || 'Failed to save budget'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-        return
-      }
-
-      setData((prev) => {
-        if (!prev) return prev
-        const others = prev.budgets.filter((b) => b.category_id !== categoryId)
-        const spent = Number(existing?.spent_amount || 0)
-        const merged = {
-          ...existing,
-          id: payload.id,
-          amount: payload.amount,
-          remaining_amount: Math.round((payload.amount - spent) * 100) / 100,
-          has_budget: true,
-        }
-        return {
-          ...prev,
-          budgets: [...others, merged].sort((a, b) => a.category_name.localeCompare(b.category_name)),
-        }
-      })
-      setDrafts((prev) => ({ ...prev, [categoryId]: String(payload.amount) }))
       const nextMessage = `Saved budget for ${existing?.category_name ?? String(categoryId)}`
       setMessage(nextMessage)
       showToast({ tone: 'success', message: nextMessage })
       onChanged?.()
-    } catch {
-      setError('Could not reach the server')
-      showToast({ tone: 'error', message: 'Could not reach the server' })
+    } catch (err) {
+      const nextError = err.message || 'Could not reach the server'
+      setSaveError(nextError)
+      showToast({ tone: 'error', message: nextError })
     } finally {
       setSavingCategoryId(null)
     }
@@ -147,7 +92,7 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
       </div>
 
       {loading && <p className="form-loading">Loading budgets…</p>}
-      {error && <p className="form-error">{error}</p>}
+      {(error || saveError) && <p className="form-error">{error || saveError}</p>}
       {message && <p className="form-success">{message}</p>}
 
       {!loading && (
@@ -192,7 +137,7 @@ export default function BudgetManager({ token, bootstrap, refreshKey, onChanged 
                     <button
                       type="button"
                       className="btn-submit"
-                      onClick={() => saveBudget(category.id)}
+                      onClick={() => handleSaveBudget(category.id)}
                       disabled={savingCategoryId === category.id}
                     >
                       {savingCategoryId === category.id ? 'Saving…' : budget?.id ? 'Update' : 'Set Budget'}

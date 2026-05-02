@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useToast } from '../providers/ToastProvider'
 import { getAccountTypeMeta } from '../lib/ui'
-import { readJsonResponse } from '../lib/http'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+import { useAccountStore } from '../stores/accountStore'
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'cash', 'credit']
 
@@ -25,11 +23,14 @@ function fmt(amount) {
   })
 }
 
-export default function AccountsManager({ token, refreshKey, onChanged }) {
+export default function AccountsManager({ onChanged }) {
   const { showToast } = useToast()
-  const [accounts, setAccounts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const {
+    accounts, loading, error,
+    createAccount, updateAccount, deleteAccount,
+  } = useAccountStore()
+
+  const [formError, setFormError] = useState('')
   const [message, setMessage] = useState('')
   const [form, setForm] = useState(blankForm())
   const [editingId, setEditingId] = useState(null)
@@ -37,28 +38,6 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deleteLoading, setDeleteLoading] = useState(false)
-
-  useEffect(() => {
-    loadAccounts()
-  }, [token, refreshKey])
-
-  async function loadAccounts() {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch(`${API_BASE_URL}/accounts`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const payload = await readJsonResponse(res, 'Failed to load accounts')
-      setAccounts(payload.accounts || [])
-    } catch (err) {
-      const nextError = err.message || 'Could not load accounts'
-      setError(nextError)
-      showToast({ tone: 'error', message: nextError })
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const expectedDeletePhrase = useMemo(() => {
     if (!deleteTarget) return ''
@@ -75,7 +54,7 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
   }
 
   function clearInlineFeedback() {
-    setError('')
+    setFormError('')
     setMessage('')
   }
 
@@ -108,35 +87,19 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
         sort_order: Number(form.sort_order || 0),
       }
 
-      const url = editingId ? `${API_BASE_URL}/accounts/${editingId}` : `${API_BASE_URL}/accounts`
-      const method = editingId ? 'PUT' : 'POST'
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        const nextError = data.error || 'Failed to save account'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-        return
-      }
+      const data = editingId
+        ? await updateAccount(editingId, payload)
+        : await createAccount(payload)
 
       const nextMessage = editingId ? `Updated ${data.name}` : `Created ${data.name}`
       setMessage(nextMessage)
       showToast({ tone: 'success', message: nextMessage })
       resetForm()
-      await loadAccounts()
       onChanged?.()
-    } catch {
-      setError('Could not reach the server')
-      showToast({ tone: 'error', message: 'Could not reach the server' })
+    } catch (err) {
+      const nextError = err.message || 'Could not reach the server'
+      setFormError(nextError)
+      showToast({ tone: 'error', message: nextError })
     } finally {
       setSaving(false)
     }
@@ -146,7 +109,7 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
     if (!deleteTarget) return
     if (deletePhrase !== expectedDeletePhrase) {
       const nextError = 'Delete confirmation phrase does not match'
-      setError(nextError)
+      setFormError(nextError)
       showToast({ tone: 'warning', message: nextError })
       return
     }
@@ -155,18 +118,7 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
     clearInlineFeedback()
 
     try {
-      const res = await fetch(`${API_BASE_URL}/accounts/${deleteTarget.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      const payload = res.status === 204 ? null : await res.json()
-      if (!res.ok) {
-        const nextError = payload?.error || 'Failed to delete account'
-        setError(nextError)
-        showToast({ tone: 'error', message: nextError })
-        return
-      }
+      await deleteAccount(deleteTarget.id, deletePhrase)
 
       const nextMessage = `Deleted ${deleteTarget.name}`
       setMessage(nextMessage)
@@ -174,15 +126,17 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
       setDeleteTarget(null)
       setDeletePhrase('')
       if (editingId === deleteTarget.id) resetForm()
-      await loadAccounts()
       onChanged?.()
-    } catch {
-      setError('Could not reach the server')
-      showToast({ tone: 'error', message: 'Could not reach the server' })
+    } catch (err) {
+      const nextError = err.message || 'Could not reach the server'
+      setFormError(nextError)
+      showToast({ tone: 'error', message: nextError })
     } finally {
       setDeleteLoading(false)
     }
   }
+
+  const displayError = error || formError
 
   return (
     <div className="settings-manager">
@@ -264,7 +218,7 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
           <span>Account is active</span>
         </label>
 
-        {error && <p className="form-error">{error}</p>}
+        {displayError && <p className="form-error">{displayError}</p>}
         {message && <p className="form-success">{message}</p>}
 
         <div className="modal-actions settings-actions">
@@ -282,9 +236,9 @@ export default function AccountsManager({ token, refreshKey, onChanged }) {
       <div className="settings-list-wrap">
         <div className="settings-section-title">Accounts</div>
         {loading && <p className="form-loading">Loading accounts…</p>}
-        {!loading && accounts.length === 0 && <p className="txn-empty">No accounts yet.</p>}
+        {!loading && (!accounts || accounts.length === 0) && <p className="txn-empty">No accounts yet.</p>}
 
-        {!loading && accounts.length > 0 && (
+        {!loading && accounts && accounts.length > 0 && (
           <div className="settings-list">
             {accounts.map((account) => {
               const typeMeta = getAccountTypeMeta(account.type)

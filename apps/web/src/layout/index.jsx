@@ -1,20 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { getBootstrapCache, getLastBootstrapSyncAt, saveBootstrapCache } from '../offline/db'
+import { useBootstrapStore } from '../stores/bootstrapStore'
+import { useStoreActions } from '../stores'
 import { useNetworkStatus } from '../hooks/useNetworkStatus'
 import { useOfflineSync } from '../hooks/useOfflineSync'
+import { authService } from '../services/authService'
 import {
-  PlusCircle,
-  TrendingUp,
-  ArrowLeftRight,
-  List,
-  Wallet,
-  BarChart2,
-  Settings,
-  MoreHorizontal,
-  Moon,
-  Sun,
-  LogOut,
-  ChevronRight,
+  PlusCircle, TrendingUp, ArrowLeftRight, List, Wallet,
+  BarChart2, Settings, MoreHorizontal, Moon, Sun, LogOut, ChevronRight,
 } from 'lucide-react'
 import ExpenseForm from '../transactions/forms/ExpenseForm'
 import IncomeForm from '../transactions/forms/IncomeForm'
@@ -27,121 +19,71 @@ import SubcategoriesManager from '../settings/subcategories'
 import ReportsPage from '../reports'
 import logoUrl from '../assets/logo-budgeting-app.svg'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
-
 const NAV_ITEMS = [
-  { id: 'expense', label: 'Expense', icon: PlusCircle },
-  { id: 'income', label: 'Income', icon: TrendingUp },
-  { id: 'savings', label: 'Savings', icon: ArrowLeftRight },
-  { id: 'transactions', label: 'Transactions', icon: List },
-  { id: 'reports', label: 'Reports', icon: BarChart2 },
-  { id: 'balances', label: 'Balances', icon: Wallet },
-  { id: 'budgets', label: 'Budgets', icon: BarChart2 },
-  { id: 'accounts', label: 'Accounts', icon: Settings },
+  { id: 'expense',       label: 'Expense',       icon: PlusCircle },
+  { id: 'income',        label: 'Income',        icon: TrendingUp },
+  { id: 'savings',       label: 'Savings',       icon: ArrowLeftRight },
+  { id: 'transactions',  label: 'Transactions',  icon: List },
+  { id: 'reports',       label: 'Reports',       icon: BarChart2 },
+  { id: 'balances',      label: 'Balances',      icon: Wallet },
+  { id: 'budgets',       label: 'Budgets',       icon: BarChart2 },
+  { id: 'accounts',      label: 'Accounts',      icon: Settings },
   { id: 'subcategories', label: 'Subcategories', icon: Settings },
 ]
 
-const BOTTOM_PRIMARY = NAV_ITEMS.slice(0, 4)
+const BOTTOM_PRIMARY  = NAV_ITEMS.slice(0, 4)
 const BOTTOM_OVERFLOW = NAV_ITEMS.slice(4)
 
-export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMode }) {
+export default function AppShell({ user, onLogout, darkMode, toggleDarkMode }) {
   const [activeTab, setActiveTab] = useState('reports')
-  const [bootstrap, setBootstrap] = useState(null)
-  const [bootstrapErr, setBootstrapErr] = useState('')
-  const [bootstrapMeta, setBootstrapMeta] = useState({ source: 'network', syncedAt: null })
-  const [refreshKey, setRefreshKey] = useState(0)
   const [avatarOpen, setAvatarOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [syncRefreshKey, setSyncRefreshKey] = useState(0)
+
+  const { error: bootstrapErr, source: bootstrapSource, syncedAt } = useBootstrapStore()
+  const {
+    invalidateBootstrap,
+    invalidateBudgets,
+    invalidateTransactions,
+    invalidateAccounts,
+    invalidateReports,
+    invalidateSubcategories,
+  } = useStoreActions()
 
   const isOnline = useNetworkStatus()
-  const [syncRefreshKey, setSyncRefreshKey] = useState(0)
   const { pending, syncing, failed } = useOfflineSync({
-    token,
     enabled: isOnline,
     refreshKey: syncRefreshKey,
     onSyncComplete: (result) => {
-      if (result?.synced) {
-        setRefreshKey(k => k + 1)
-      }
+      if (result?.synced) handleDataChanged()
       setSyncRefreshKey(k => k + 1)
     },
   })
 
   const avatarRef = useRef(null)
-  const moreRef = useRef(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadBootstrap() {
-      setBootstrapErr('')
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/bootstrap`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-
-        if (!response.ok) {
-          throw new Error('bootstrap_request_failed')
-        }
-
-        const data = await response.json()
-        const syncedAt = await saveBootstrapCache(data)
-
-        if (cancelled) return
-
-        setBootstrap(data)
-        setBootstrapMeta({ source: 'network', syncedAt })
-        return
-      } catch {
-        const cached = await getBootstrapCache()
-        const cachedSyncedAt = await getLastBootstrapSyncAt()
-
-        if (!cancelled && cached?.payload) {
-          setBootstrap(cached.payload)
-          setBootstrapMeta({ source: 'cache', syncedAt: cached.syncedAt || cachedSyncedAt })
-          setBootstrapErr('Using cached form options while offline or while the API is unavailable.')
-          return
-        }
-
-        if (!cancelled) {
-          setBootstrap(null)
-          setBootstrapMeta({ source: 'network', syncedAt: null })
-          setBootstrapErr('Could not load form options. Is the API running?')
-        }
-      }
-    }
-
-    loadBootstrap()
-
-    return () => {
-      cancelled = true
-    }
-  }, [token, refreshKey])
+  const moreRef   = useRef(null)
 
   useEffect(() => {
     function onOutsideClick(e) {
       if (avatarRef.current && !avatarRef.current.contains(e.target)) setAvatarOpen(false)
-      if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false)
+      if (moreRef.current  && !moreRef.current.contains(e.target))  setMoreOpen(false)
     }
     document.addEventListener('mousedown', onOutsideClick)
     return () => document.removeEventListener('mousedown', onOutsideClick)
   }, [])
 
   async function handleLogout() {
-    try {
-      await fetch(`${API_BASE_URL}/auth/logout`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-    } catch {
-      // Ignore network errors; clear local state regardless
-    }
+    try { await authService.logout() } catch { /* ignore network errors */ }
     onLogout()
   }
 
   function handleDataChanged() {
-    setRefreshKey(k => k + 1)
+    invalidateBootstrap()
+    invalidateBudgets()
+    invalidateTransactions()
+    invalidateAccounts()
+    invalidateReports()
+    invalidateSubcategories()
     setSyncRefreshKey(k => k + 1)
   }
 
@@ -150,16 +92,11 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
     setMoreOpen(false)
   }
 
-  const activeItem = NAV_ITEMS.find(n => n.id === activeTab)
-  const userInitial = (user.name || user.username || '?')[0].toUpperCase()
+  const activeItem     = NAV_ITEMS.find(n => n.id === activeTab)
+  const userInitial    = (user.name || user.username || '?')[0].toUpperCase()
   const overflowActive = BOTTOM_OVERFLOW.some(i => i.id === activeTab)
-  const shortSyncedAt = bootstrapMeta.syncedAt
-    ? new Date(bootstrapMeta.syncedAt).toLocaleString([], {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      })
+  const shortSyncedAt  = syncedAt
+    ? new Date(syncedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     : ''
 
   return (
@@ -177,10 +114,10 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
           <span className="shell-page-title">{activeItem?.label}</span>
           <span className={`shell-sync-status shell-sync-status--${isOnline ? 'online' : 'offline'}`}>
             {isOnline ? 'Online' : 'Offline'}
-            {bootstrapMeta.source === 'cache' ? ' · cached data' : ''}
+            {bootstrapSource === 'cache' ? ' · cached data' : ''}
             {syncing > 0 ? ` · syncing: ${syncing}` : ''}
             {pending > 0 ? ` · pending sync: ${pending}` : ''}
-            {failed > 0 ? ` · failed sync: ${failed}` : ''}
+            {failed  > 0 ? ` · failed sync: ${failed}`  : ''}
             {shortSyncedAt ? ` · ${shortSyncedAt}` : ''}
           </span>
         </div>
@@ -198,9 +135,7 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
 
             {avatarOpen && (
               <div className="avatar-dropdown" role="menu">
-                <div className="avatar-dropdown-name">
-                  {user.name || user.username}
-                </div>
+                <div className="avatar-dropdown-name">{user.name || user.username}</div>
                 <button
                   className="avatar-dropdown-item"
                   role="menuitem"
@@ -249,78 +184,60 @@ export default function AppShell({ user, token, onLogout, darkMode, toggleDarkMo
           {activeTab === 'expense' && (
             <section className="form-card">
               <h2 className="section-title">New Expense</h2>
-              <ExpenseForm token={token} bootstrap={bootstrap} onCreated={handleDataChanged} />
+              <ExpenseForm onCreated={handleDataChanged} />
             </section>
           )}
 
           {activeTab === 'income' && (
             <section className="form-card">
               <h2 className="section-title">New Income</h2>
-              <IncomeForm token={token} bootstrap={bootstrap} onCreated={handleDataChanged} />
+              <IncomeForm onCreated={handleDataChanged} />
             </section>
           )}
 
           {activeTab === 'savings' && (
             <section className="form-card">
               <h2 className="section-title">New Savings Transfer</h2>
-              <TransferForm token={token} bootstrap={bootstrap} onCreated={handleDataChanged} />
+              <TransferForm onCreated={handleDataChanged} />
             </section>
           )}
 
           {activeTab === 'transactions' && (
             <section className="form-card">
               <h2 className="section-title">Transactions</h2>
-              <TransactionList
-                token={token}
-                bootstrap={bootstrap}
-                refreshKey={refreshKey}
-                onChanged={handleDataChanged}
-              />
+              <TransactionList onChanged={handleDataChanged} />
             </section>
           )}
 
           {activeTab === 'balances' && (
             <section className="form-card form-card--wide">
               <h2 className="section-title">Account Balances</h2>
-              <AccountBalances token={token} refreshKey={refreshKey} />
+              <AccountBalances />
             </section>
           )}
 
           {activeTab === 'reports' && (
-            <ReportsPage token={token} onAddExpense={() => setActiveTab('expense')} />
+            <ReportsPage onAddExpense={() => setActiveTab('expense')} />
           )}
 
           {activeTab === 'budgets' && (
             <section className="form-card form-card--wide">
               <h2 className="section-title">Monthly Budgets</h2>
-              <BudgetManager
-                token={token}
-                bootstrap={bootstrap}
-                refreshKey={refreshKey}
-                onChanged={handleDataChanged}
-              />
+              <BudgetManager onChanged={handleDataChanged} />
             </section>
           )}
 
           {activeTab === 'accounts' && (
             <section className="form-card form-card--wide">
               <h2 className="section-title">Accounts</h2>
-              <AccountsManager
-                token={token}
-                refreshKey={refreshKey}
-                onChanged={handleDataChanged}
-              />
+              <AccountsManager onChanged={handleDataChanged} />
             </section>
           )}
 
           {activeTab === 'subcategories' && (
             <section className="form-card form-card--wide">
               <h2 className="section-title">Subcategories</h2>
-              <SubcategoriesManager
-                token={token}
-                refreshKey={refreshKey}
-                onChanged={handleDataChanged}
-              />
+              <SubcategoriesManager onChanged={handleDataChanged} />
             </section>
           )}
         </main>
